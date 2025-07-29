@@ -21,18 +21,22 @@ export default function App() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
+  // マウント状態の管理
   useEffect(() => { 
     setMounted(true); 
   }, []);
   
+  // Firebase認証の設定
   useEffect(() => { 
+    if (!mounted) return; // マウントされるまで実行しない
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => { 
       if (!user) { 
         signInAnonymously(auth).catch((e) => console.error("Anonymous auth failed.", e)); 
       } 
     }); 
     return () => unsubscribe();
-  }, []);
+  }, [mounted]); // mountedを依存配列に追加
 
   const handleJoinSession = (info: SessionInfoType) => { setSessionInfo(info); setMode(info.type); };
   const goHome = () => { setMode('home'); setSessionInfo(null); };
@@ -73,12 +77,12 @@ export default function App() {
                 const nextTheme = currentTheme === 'light' ? 'dark' : currentTheme === 'dark' ? 'system' : 'light';
                 setTheme(nextTheme);
               }}
-              title={`現在: ${theme === 'light' ? 'ライト' : theme === 'dark' ? 'ダーク' : 'システム'}モード | 解決済み: ${resolvedTheme} (クリックで切り替え)`}
+              title={`現在: ${theme === 'light' ? 'ライト' : theme === 'dark' ? 'ダーク' : 'システム'}モード | 解決済み: ${resolvedTheme || 'unknown'} (クリックで切り替え)`}
               className="relative bg-white dark:bg-gray-800 shadow-lg rounded-full"
             >
-              {resolvedTheme === 'light' && <Sun size={24} className="text-yellow-500" />}
-              {resolvedTheme === 'dark' && <Moon size={24} className="text-blue-400" />}
-              {theme === 'system' && <Monitor size={24} className="theme-text-secondary" />}
+              {mounted && resolvedTheme === 'light' && <Sun size={24} className="text-yellow-500" />}
+              {mounted && resolvedTheme === 'dark' && <Moon size={24} className="text-blue-400" />}
+              {mounted && theme === 'system' && <Monitor size={24} className="theme-text-secondary" />}
             </IconButton>
           )}
           {mounted && (mode === 'home' || mode === 'join') && (

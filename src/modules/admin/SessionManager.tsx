@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback, useState } from 'react';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
-import { db, appId } from '../../lib/firebase';
+import { db, appId, firebaseNetworkHelpers } from '../../lib/firebase';
 import { Card, Button, IconButton } from '../../components/ui';
-import { Plus, Play, Users, Trash2, Copy, RotateCcw } from 'lucide-react';
+import { Plus, Play, Users, Trash2, Copy, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import type { Session, ItemList, NotificationType } from '../../types';
 
 interface SessionManagerProps {
@@ -11,71 +11,217 @@ interface SessionManagerProps {
   setNotification: (n: NotificationType) => void;
 }
 
+// 状態管理をuseReducerで統一
+interface SessionState {
+  sessions: Session[];
+  newSessionName: string;
+  newSessionType: 'lesson' | 'workshop';
+  selectedItemListId: string;
+  teamCount: number;
+  isSubmitting: boolean;
+}
+
+type SessionAction = 
+  | { type: 'SET_SESSIONS'; payload: Session[] }
+  | { type: 'SET_NEW_SESSION_NAME'; payload: string }
+  | { type: 'SET_NEW_SESSION_TYPE'; payload: 'lesson' | 'workshop' }
+  | { type: 'SET_SELECTED_ITEM_LIST_ID'; payload: string }
+  | { type: 'SET_TEAM_COUNT'; payload: number }
+  | { type: 'SET_IS_SUBMITTING'; payload: boolean }
+  | { type: 'RESET_FORM' };
+
+const initialState: SessionState = {
+  sessions: [],
+  newSessionName: "",
+  newSessionType: 'lesson',
+  selectedItemListId: "",
+  teamCount: 2,
+  isSubmitting: false,
+};
+
+function sessionReducer(state: SessionState, action: SessionAction): SessionState {
+  switch (action.type) {
+    case 'SET_SESSIONS':
+      return { ...state, sessions: action.payload };
+    case 'SET_NEW_SESSION_NAME':
+      return { ...state, newSessionName: action.payload };
+    case 'SET_NEW_SESSION_TYPE':
+      return { ...state, newSessionType: action.payload };
+    case 'SET_SELECTED_ITEM_LIST_ID':
+      return { ...state, selectedItemListId: action.payload };
+    case 'SET_TEAM_COUNT':
+      return { ...state, teamCount: action.payload };
+    case 'SET_IS_SUBMITTING':
+      return { ...state, isSubmitting: action.payload };
+    case 'RESET_FORM':
+      return { 
+        ...state, 
+        newSessionName: "", 
+        selectedItemListId: "", 
+        teamCount: 2,
+        isSubmitting: false 
+      };
+    default:
+      return state;
+  }
+}
+
 const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResults, setNotification }) => {
-    const [sessions, setSessions] = useState<Session[]>([]);
-    const [newSessionName, setNewSessionName] = useState<string>("");
-    const [newSessionType, setNewSessionType] = useState<'lesson' | 'workshop'>('lesson');
-    const [selectedItemListId, setSelectedItemListId] = useState<string>("");
-    const [teamCount, setTeamCount] = useState<number>(2);
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const [state, dispatch] = useReducer(sessionReducer, initialState);
+    const [isOnline, setIsOnline] = useState(true);
+    const mountedRef = useRef<boolean>(true);
+    const unsubscribeRef = useRef<(() => void) | null>(null);
+
+    // マウント状態の管理
+    useEffect(() => {
+        mountedRef.current = true;
+        
+        // オンライン状態の監視
+        const checkConnection = async () => {
+            const connected = await firebaseNetworkHelpers.checkConnection() as boolean;
+            if (mountedRef.current) {
+                setIsOnline(connected);
+            }
+        };
+        
+        // 初回チェック
+        checkConnection();
+        
+        // 定期的な接続チェック（30秒ごと）
+        const connectionCheckInterval = setInterval(checkConnection, 30000);
+        
+        return () => {
+            mountedRef.current = false;
+            clearInterval(connectionCheckInterval);
+            // クリーンアップ時にFirestoreリスナーも停止
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+            }
+        };
+    }, []);
 
     useEffect(() => {
+        if (!mountedRef.current) return;
+        
         const sessionsQuery = query(collection(db, "artifacts", appId, "public", "data", "trainingSessions"));
         const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
-            const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
-            setSessions(sessionsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+            if (!mountedRef.current) return; // アンマウント後は状態を更新しない
+            
+            try {
+                const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
+                dispatch({ 
+                    type: 'SET_SESSIONS', 
+                    payload: sessionsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                });
+                
+                // 成功時はオンライン状態を更新
+                setIsOnline(true);
+            } catch (error) {
+                console.error('Error processing sessions data:', error);
+                if (mountedRef.current) {
+                    setNotification({ type: 'error', message: 'セッションデータの処理中にエラーが発生しました。' });
+                }
+            }
+        }, (error) => {
+            console.error('Firestore connection error:', error);
+            if (mountedRef.current) {
+                setIsOnline(false);
+                
+                // 接続エラーの種類に応じてメッセージを変更
+                if (error.code === 'unavailable') {
+                    setNotification({ 
+                        type: 'error', 
+                        message: 'インターネット接続を確認してください。オフラインモードで動作しています。' 
+                    });
+                } else {
+                    setNotification({ 
+                        type: 'error', 
+                        message: 'データベース接続エラーが発生しました。しばらく後にお試しください。' 
+                    });
+                }
+            }
         });
-        return () => unsubscribe();
-    }, []);
+        
+        unsubscribeRef.current = unsubscribe;
+        
+        return () => {
+            if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+            }
+        };
+    }, [setNotification]);
 
     const generateAccessCode = (): string => Math.floor(1000 + Math.random() * 9000).toString();
 
-    const createSession = async () => {
-        if (!newSessionName || !selectedItemListId) { setNotification({ type: 'error', message: '必要な項目を入力してください。' }); return; }
-        setIsSubmitting(true);
+    const createSession = useCallback(async () => {
+        if (!mountedRef.current || !state.newSessionName || !state.selectedItemListId) { 
+            if (mountedRef.current) {
+                setNotification({ type: 'error', message: '必要な項目を入力してください。' }); 
+            }
+            return; 
+        }
+        
+        if (state.isSubmitting) return; // 重複実行を防止
+        
+        dispatch({ type: 'SET_IS_SUBMITTING', payload: true });
         try {
             const sessionDoc = await addDoc(collection(db, "artifacts", appId, "public", "data", "trainingSessions"), {
-                name: newSessionName,
-                type: newSessionType,
-                itemListId: selectedItemListId,
+                name: state.newSessionName,
+                type: state.newSessionType,
+                itemListId: state.selectedItemListId,
                 accessCode: generateAccessCode(),
                 createdAt: serverTimestamp(),
                 isActive: false
             });
             
-            if (newSessionType === 'lesson') {
-                for (let i = 1; i <= teamCount; i++) {
-                    await addDoc(collection(db, "artifacts", appId, "public", "data", "trainingSessions", sessionDoc.id, "teams"), {
-                        teamNumber: i,
-                        accessCode: generateAccessCode(),
-                        selectedItems: [],
-                        isSubmitted: false,
-                        createdAt: serverTimestamp()
-                    });
+            if (state.newSessionType === 'lesson' && mountedRef.current) {
+                const teamPromises = [];
+                for (let i = 1; i <= state.teamCount; i++) {
+                    teamPromises.push(
+                        addDoc(collection(db, "artifacts", appId, "public", "data", "trainingSessions", sessionDoc.id, "teams"), {
+                            teamNumber: i,
+                            accessCode: generateAccessCode(),
+                            selectedItems: [],
+                            isSubmitted: false,
+                            createdAt: serverTimestamp()
+                        })
+                    );
                 }
+                await Promise.all(teamPromises);
             }
             
-            setNotification({ type: 'success', message: 'セッションを作成しました。' });
-            setNewSessionName("");
-            setSelectedItemListId("");
-            setTeamCount(2);
+            if (mountedRef.current) {
+                setNotification({ type: 'success', message: 'セッションを作成しました。' });
+                dispatch({ type: 'SET_NEW_SESSION_NAME', payload: '' });
+                dispatch({ type: 'SET_SELECTED_ITEM_LIST_ID', payload: '' });
+                dispatch({ type: 'SET_TEAM_COUNT', payload: 2 });
+            }
         } catch (error) {
             console.error('Error creating session:', error);
-            setNotification({ type: 'error', message: 'セッション作成中にエラーが発生しました。' });
+            if (mountedRef.current) {
+                setNotification({ type: 'error', message: 'セッション作成中にエラーが発生しました。' });
+            }
+        } finally {
+            if (mountedRef.current) {
+                dispatch({ type: 'SET_IS_SUBMITTING', payload: false });
+            }
         }
-        setIsSubmitting(false);
-    };
+    }, [state.newSessionName, state.selectedItemListId, state.newSessionType, state.teamCount, state.isSubmitting, setNotification]);
 
-    const deleteSession = async (sessionId: string) => {
-        if (!confirm('このセッションを削除しますか？この操作は取り消せません。')) return;
+    const deleteSession = useCallback(async (sessionId: string) => {
+        if (!mountedRef.current || !confirm('このセッションを削除しますか？この操作は取り消せません。')) return;
         try {
             await deleteDoc(doc(db, "artifacts", appId, "public", "data", "trainingSessions", sessionId));
-            setNotification({ type: 'success', message: 'セッションを削除しました。' });
+            if (mountedRef.current) {
+                setNotification({ type: 'success', message: 'セッションを削除しました。' });
+            }
         } catch (error) {
             console.error('Error deleting session:', error);
-            setNotification({ type: 'error', message: 'セッション削除中にエラーが発生しました。' });
+            if (mountedRef.current) {
+                setNotification({ type: 'error', message: 'セッション削除中にエラーが発生しました。' });
+            }
         }
-    };
+    }, [setNotification]);
 
     const resetSession = async (session: Session) => {
         if (!confirm('このセッションをリセットしますか？すべての回答が削除されます。')) return;
@@ -109,6 +255,23 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
 
     return (
         <div className="space-y-6 mt-6">
+            {/* 接続状態インジケーター */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-sm">
+                    {isOnline ? (
+                        <>
+                            <Wifi size={16} className="text-green-500" />
+                            <span className="text-green-600 dark:text-green-400">オンライン</span>
+                        </>
+                    ) : (
+                        <>
+                            <WifiOff size={16} className="text-red-500" />
+                            <span className="text-red-600 dark:text-red-400">オフライン</span>
+                        </>
+                    )}
+                </div>
+            </div>
+
             {/* セッション作成フォーム */}
             <Card>
                 <div className="space-y-4">
@@ -117,8 +280,8 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                         <label className="block text-sm font-medium theme-text-primary mb-2">セッション名</label>
                         <input 
                             type="text" 
-                            value={newSessionName} 
-                            onChange={(e) => setNewSessionName(e.target.value)} 
+                            value={state.newSessionName}
+                            onChange={(e) => dispatch({ type: 'SET_NEW_SESSION_NAME', payload: e.target.value })}
                             className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500" 
                             placeholder="例: 1組 防災訓練"
                         />
@@ -127,9 +290,9 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                     {/* セッションタイプ選択ボタン */}
                     <div className="flex gap-4">
                         <button
-                            onClick={() => setNewSessionType('lesson')}
+                            onClick={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'lesson' })}
                             className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-                                newSessionType === 'lesson'
+                                state.newSessionType === 'lesson'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-200 dark:bg-gray-700 theme-text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
                             }`}
@@ -137,9 +300,9 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                             授業（チーム制）
                         </button>
                         <button
-                            onClick={() => setNewSessionType('workshop')}
+                            onClick={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'workshop' })}
                             className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-                                newSessionType === 'workshop'
+                                state.newSessionType === 'workshop'
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-200 dark:bg-gray-700 theme-text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
                             }`}
@@ -149,15 +312,15 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                     </div>
 
                     {/* チーム数（授業モード時のみ） */}
-                    {newSessionType === 'lesson' && (
+                    {state.newSessionType === 'lesson' && (
                         <div>
                             <label className="block text-sm font-medium theme-text-primary mb-2">チーム数</label>
                             <input 
                                 type="number" 
                                 min="1" 
                                 max="50" 
-                                value={teamCount} 
-                                onChange={(e) => setTeamCount(parseInt(e.target.value) || 2)} 
+                                value={state.teamCount}
+                                onChange={(e) => dispatch({ type: 'SET_TEAM_COUNT', payload: parseInt(e.target.value) || 2 })}
                                 className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 title="チーム数を入力してください"
                                 placeholder="2"
@@ -169,8 +332,8 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                     <div>
                         <label className="block text-sm font-medium theme-text-primary mb-2">アイテムリスト</label>
                         <select 
-                            value={selectedItemListId} 
-                            onChange={(e) => setSelectedItemListId(e.target.value)} 
+                            value={state.selectedItemListId}
+                            onChange={(e) => dispatch({ type: 'SET_SELECTED_ITEM_LIST_ID', payload: e.target.value })}
                             className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500"
                             title="使用するアイテムリストを選択してください"
                         >
@@ -184,11 +347,16 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                     {/* セッション作成ボタン */}
                     <Button 
                         onClick={createSession} 
-                        disabled={isSubmitting || !newSessionName} 
-                        className="w-full py-3 text-lg bg-slate-700 hover:bg-slate-600 text-white"
+                        disabled={state.isSubmitting || !state.newSessionName || !isOnline}
+                        className="w-full py-3 text-lg bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-50"
                         icon={Plus}
                     >
-                        {isSubmitting ? 'セッション作成中...' : 'セッション作成'}
+                        {!isOnline 
+                            ? 'オフライン（セッション作成不可）' 
+                            : state.isSubmitting 
+                                ? 'セッション作成中...' 
+                                : 'セッション作成'
+                        }
                     </Button>
                 </div>
             </Card>
@@ -204,13 +372,13 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                 </div>
 
                 <Card>
-                    {sessions.length === 0 ? (
+                    {state.sessions.length === 0 ? (
                         <div className="text-center py-8 theme-text-secondary">
                             まだセッションがありません。上記のフォームから新しいセッションを作成してください。
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {sessions.map((session) => (
+                            {state.sessions.map((session) => (
                                 <div key={session.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 pb-4 last:pb-0">
                                     <div className="flex justify-between items-start">
                                         <div className="flex-1">

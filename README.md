@@ -69,9 +69,29 @@ pnpm dev
 
 ## セキュリティ
 
-- 環境変数を使用したFirebase設定の保護
-- 匿名認証による安全なユーザー管理
+### 環境変数について
+- `NEXT_PUBLIC_`プレフィックス付きの環境変数は**ブラウザからもアクセス可能**です
+- Firebase Web SDKの性質上、APIキーなどの設定値はクライアントサイドで利用されます
+- これらの値は公開されても問題ありませんが、Firebaseコンソールでセキュリティルールを適切に設定してください
+
+### Firebaseセキュリティルールの設定推奨事項
+```javascript
+// Firestore Rules例
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 認証されたユーザーのみアクセス可能
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+### 本番環境での注意事項
 - `.env`ファイルは`.gitignore`に含まれており、コミットされません
+- 本番環境では環境変数を適切に設定してください
+- より機密性の高い情報（Admin SDK Key等）は`NEXT_PUBLIC_`プレフィックスを**使用せず**、サーバーサイドでのみ使用してください
 
 ## Learn More
 
