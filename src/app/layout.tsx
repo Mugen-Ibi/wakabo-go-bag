@@ -3,8 +3,8 @@ import { ThemeProvider } from 'next-themes'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: '防災持ち出し袋作成支援ツール',
-  description: '災害時の持ち出し袋作成を支援するWebアプリケーション',
+  title: process.env.NEXT_PUBLIC_APP_NAME || '防災持ち出し袋作成支援ツール',
+  description: process.env.NEXT_PUBLIC_APP_DESCRIPTION || '災害時の持ち出し袋作成を支援するWebアプリケーション',
 }
 
 interface RootLayoutProps {
