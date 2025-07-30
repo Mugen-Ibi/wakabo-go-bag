@@ -3,10 +3,18 @@ export type NotificationType = { type: 'success' | 'error'; message: string } | 
 
 export type SessionType = 'lesson' | 'workshop';
 
+// アイテムデータの新しい構造
+export interface ItemData {
+  name: string;
+  icon?: string;           // Lucide React アイコン名
+  category?: string;       // カテゴリ（食料、医療用品など）
+  description?: string;    // 説明文
+}
+
 export interface ItemList {
   id: string;
   name: string;
-  items: string[];
+  items: (string | ItemData)[];  // 後方互換性のため両方サポート
   isDefault?: boolean;
 }
 

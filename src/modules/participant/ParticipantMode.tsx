@@ -4,13 +4,14 @@ import { doc, updateDoc, addDoc, serverTimestamp, collection } from 'firebase/fi
 import { auth, db, appId } from '../../lib/firebase';
 import { Card, Button, Item } from '../../components/ui';
 import { MAX_SELECTION } from '../../lib/helpers';
-import type { NotificationType } from '../../types';
+import { getItemName } from '../../lib/itemUtils';
+import type { NotificationType, ItemData } from '../../types';
 
 type InfoType = {
   type: 'lesson' | 'workshop';
   team?: { selectedItems?: string[]; isSubmitted?: boolean; teamNumber?: number; id?: string };
   session: { id: string; [key: string]: any };
-  itemList: { name: string; items: string[] };
+  itemList: { name: string; items: (string | ItemData)[] };
 };
 
 interface Props {
@@ -43,9 +44,12 @@ const ParticipantMode: React.FC<Props> = ({ info, setNotification }) => {
         setIsSubmitting(false);
     };
 
-    const handleItemClick = async (item: string) => {
+    const handleItemClick = async (item: string | ItemData) => {
         if (isSubmitted) return;
-        const newSelectedItems = selectedItems.includes(item) ? selectedItems.filter((i: string) => i !== item) : [...selectedItems, item];
+        const itemName = getItemName(item);
+        const newSelectedItems = selectedItems.includes(itemName) 
+            ? selectedItems.filter((i: string) => i !== itemName) 
+            : [...selectedItems, itemName];
         if (newSelectedItems.length > MAX_SELECTION) { setNotification({type: 'error', message: `選択できるアイテムは${MAX_SELECTION}個までです。`}); return; }
         setSelectedItems(newSelectedItems);
         
@@ -67,7 +71,18 @@ const ParticipantMode: React.FC<Props> = ({ info, setNotification }) => {
                 <div className="flex justify-between items-center mb-4"><h2 className="text-xl sm:text-2xl font-bold theme-text-primary">{title}</h2><div className="text-lg font-bold text-right theme-text-primary"><span className={selectedItems.length > MAX_SELECTION ? 'text-red-500' : ''}>{selectedItems.length}</span> / {MAX_SELECTION} 個</div></div>
                 <p className="theme-text-secondary">アイテムリスト: <span className="font-bold">{info.itemList.name}</span></p>
             </Card>
-            <Card><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">{info.itemList.items.map((item: string, index: number) => <Item key={item+index} item={item} isSelected={selectedItems.includes(item)} onClick={() => handleItemClick(item)} onDelete={() => {}} />)}</div></Card>
+            <Card><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">{info.itemList.items.map((item, index: number) => {
+                const itemName = getItemName(item);
+                return (
+                    <Item 
+                        key={itemName + index} 
+                        item={item} 
+                        isSelected={selectedItems.includes(itemName)} 
+                        onClick={() => handleItemClick(item)} 
+                        onDelete={() => {}} 
+                    />
+                );
+            })}</div></Card>
             <div className="text-center mt-6"><Button onClick={handleSubmit} disabled={selectedItems.length === 0 || isSubmitting} className="bg-green-600 hover:bg-green-700">{isSubmitting ? "提出中..." : "この内容で提出する"}</Button></div>
         </div>
     );

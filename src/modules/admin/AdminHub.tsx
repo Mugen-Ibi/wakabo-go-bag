@@ -14,7 +14,7 @@ interface AdminHubProps {
 }
 
 const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
-    const [view, setView] = useState<'sessions' | 'lists' | 'results'>('lists'); // デフォルトをlistsに変更
+    const [view, setView] = useState<'sessions' | 'lists' | 'results'>('sessions'); // デフォルトをsessionsに戻す
     const [itemLists, setItemLists] = useState<ItemList[]>([]);
     const [selectedSession, setSelectedSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -57,11 +57,6 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                     
                     setItemLists(lists);
                     setIsLoading(false);
-                    
-                    // アイテムリストが作成されたらセッション管理タブに自動切り替え
-                    if (lists.length > 0 && view === 'lists') {
-                        setTimeout(() => setView('sessions'), 1500);
-                    }
                 });
                 return unsubscribe;
             } catch (error) {
@@ -72,7 +67,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
         };
         
         loadItemLists();
-    }, [setNotification, view]);
+    }, [setNotification]); // viewを依存配列から削除
 
     const handleViewResults = (session: Session) => {
         setSelectedSession(session);

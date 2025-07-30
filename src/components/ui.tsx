@@ -3,6 +3,9 @@
 import React, { ReactNode, MouseEventHandler, ReactElement } from 'react';
 import clsx from 'clsx';
 import { XCircle } from 'lucide-react';
+import { ItemData } from '../types';
+import { getIconComponent } from '../lib/icons';
+import { normalizeItem, getItemName } from '../lib/itemUtils';
 
 type CardProps = { children: ReactNode; className?: string };
 export const Card: React.FC<CardProps> = ({ children, className = '' }) => (
@@ -60,32 +63,56 @@ export const IconButton: React.FC<IconButtonProps> = ({ onClick, children, class
 );
 
 type ItemProps = {
-  item: string;
+  item: string | ItemData;
   isSelected: boolean;
   onClick: () => void;
   isEditable?: boolean;
   onDelete?: () => void;
 };
-export const Item: React.FC<ItemProps> = ({ item, isSelected, onClick, isEditable = false, onDelete }) => (
+export const Item: React.FC<ItemProps> = ({ item, isSelected, onClick, isEditable = false, onDelete }) => {
+  const itemData = normalizeItem(item);
+  const itemName = getItemName(item);
+  const IconComponent = getIconComponent(itemData.icon);
+  
+  return (
     <div
       onClick={!isEditable ? onClick : undefined}
       className={clsx(
-        'relative p-3 rounded-lg transition-all duration-200 text-sm text-center border-2',
+        'relative p-3 rounded-lg transition-all duration-200 text-sm text-center border-2 flex flex-col items-center gap-2',
         isEditable ? '' : 'cursor-pointer',
         isSelected
           ? 'bg-blue-500 text-white border-blue-500 shadow-md font-bold'
           : 'theme-bg-card theme-text-primary theme-border',
         !isEditable && 'hover:bg-blue-100 hover:border-blue-300'
       )}
+      title={itemData.description || itemName}
     >
-      {item}
+      {itemData.icon && (
+        <IconComponent 
+          size={24} 
+          className={clsx(
+            'flex-shrink-0',
+            isSelected ? 'text-white' : 'theme-text-primary'
+          )} 
+        />
+      )}
+      <span className="leading-tight">{itemName}</span>
+      {itemData.category && (
+        <span className={clsx(
+          'text-xs px-1 py-0.5 rounded bg-opacity-20',
+          isSelected ? 'bg-white text-white' : 'bg-blue-500 text-blue-600'
+        )}>
+          {itemData.category}
+        </span>
+      )}
       {isEditable && (
         <button onClick={onDelete} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600">
           <XCircle size={18} />
         </button>
       )}
     </div>
-);
+  );
+};
 
 type ModalProps = {
   isOpen: boolean;
