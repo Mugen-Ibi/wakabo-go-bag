@@ -1,8 +1,8 @@
-// Firebase設定とヘルパー関数 - 統合版
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, enableNetwork, disableNetwork } from 'firebase/firestore';
-import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
+// Firebase設定とヘルパー関数 - プロダクション版
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore, enableNetwork, disableNetwork, writeBatch, collection, doc, getDocs } from 'firebase/firestore';
+import { getFunctions, Functions } from 'firebase/functions';
 
 // Firebaseの設定
 const firebaseConfig = {
@@ -15,45 +15,37 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-JNVXK8LXVH'
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const functions = getFunctions(app);
+// Firebase初期化のヘルパー関数
+function initFirebase() {
+  return !getApps().length ? initializeApp(firebaseConfig) : getApp();
+}
+
+// Firebase servicesの取得
+function getDbInstance(): Firestore {
+  return getFirestore(initFirebase());
+}
+
+function getAuthInstance(): Auth {
+  return getAuth(initFirebase());
+}
+
+function getFunctionsInstance(): Functions {
+  return getFunctions(initFirebase());
+}
+
+// エクスポート
+export const db = getDbInstance();
+export const auth = getAuthInstance();
+export const functions = getFunctionsInstance();
 
 // appIdを動的に設定できるように
 export const appId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'emergency-go-bag';
-
-// エミュレータ接続状態の管理
-let emulatorConnected = false;
-
-// 開発環境用エミュレータ接続
-if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !emulatorConnected) {
-  const useEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
-  
-  if (useEmulator) {
-    try {
-      // Firestoreエミュレータに接続（ポート8080）
-      connectFirestoreEmulator(db, 'localhost', 8080);
-      console.log('🔥 Firestore emulator connected on localhost:8080');
-      
-      // Functionsエミュレータに接続（ポート5001）
-      connectFunctionsEmulator(functions, 'localhost', 5001);
-      console.log('🔥 Functions emulator connected on localhost:5001');
-      
-      emulatorConnected = true;
-    } catch (error) {
-      console.warn('⚠️ Firebase emulator connection failed:', error);
-      console.log('💡 Falling back to production Firebase');
-    }
-  } else {
-    console.log('🌐 Using production Firebase (set NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true to use emulator)');
-  }
-}
 
 // ネットワーク状態管理のヘルパー
 export const firebaseNetworkHelpers = {
   // ネットワークを有効化
   enableNetwork: async () => {
+    if (!db) return;
     try {
       await enableNetwork(db);
       console.log('Firebase network enabled');
@@ -64,6 +56,7 @@ export const firebaseNetworkHelpers = {
   
   // ネットワークを無効化（オフラインモード）
   disableNetwork: async () => {
+    if (!db) return;
     try {
       await disableNetwork(db);
       console.log('Firebase network disabled (offline mode)');
@@ -74,6 +67,7 @@ export const firebaseNetworkHelpers = {
   
   // 接続状態をチェック
   checkConnection: () => {
+    if (!db) return Promise.resolve(false);
     return new Promise((resolve) => {
       const timeoutId = setTimeout(() => {
         resolve(false);
@@ -81,7 +75,7 @@ export const firebaseNetworkHelpers = {
       
       // 簡単な接続テスト
       import('firebase/firestore').then(({ doc, getDoc }) => {
-        getDoc(doc(db, 'test', 'connection'))
+        getDoc(doc(db!, 'test', 'connection'))
           .then(() => {
             clearTimeout(timeoutId);
             resolve(true);
@@ -172,5 +166,3 @@ export const firestoreHelpers = {
     await batch.commit();
   },
 };
-
-export default app;

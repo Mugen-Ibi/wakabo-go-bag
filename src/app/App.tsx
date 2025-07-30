@@ -66,7 +66,13 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen theme-bg-primary theme-text-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 sm:p-6 md:p-8 transition-colors duration-300">
-        <Notification message={notification?.message ?? ''} type={notification?.type ?? 'success'} onClose={() => setNotification(null)} />
+        {notification && (
+          <Notification 
+            message={notification.message} 
+            type={notification.type} 
+            onClose={() => setNotification(null)} 
+          />
+        )}
         
 
         <div className="absolute top-4 right-4 flex gap-2 z-50">

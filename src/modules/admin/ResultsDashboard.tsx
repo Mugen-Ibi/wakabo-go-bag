@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import styles from './ResultsDashboard.module.css';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, appId } from '../../lib/firebase';
@@ -21,27 +21,57 @@ interface Props {
 const ResultsDashboard: React.FC<Props> = ({ session, onBack }) => {
     const [results, setResults] = useState<TeamOrParticipant[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const mountedRef = useRef<boolean>(true);
 
     useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!mountedRef.current) return;
+        
         let q;
         if (session.type === 'lesson') {
             q = query(collection(db, "artifacts", appId, "public", "data", "trainingSessions", session.id, "teams"));
         } else {
             q = query(collection(db, "artifacts", appId, "public", "data", "trainingSessions", session.id, "participants"));
         }
+        
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            setResults(snapshot.docs.map(d => {
-                const data = d.data();
-                return {
-                  id: d.id,
-                  teamNumber: data.teamNumber,
-                  isSubmitted: data.isSubmitted,
-                  selectedItems: data.selectedItems ?? []
-                };
-            }));
-            setIsLoading(false);
+            if (!mountedRef.current) return; // アンマウント後は状態を更新しない
+            
+            try {
+                const resultsData = snapshot.docs.map(d => {
+                    const data = d.data();
+                    return {
+                        id: d.id,
+                        teamNumber: data.teamNumber,
+                        isSubmitted: data.isSubmitted,
+                        selectedItems: data.selectedItems ?? []
+                    };
+                });
+                
+                setResults(resultsData);
+                setIsLoading(false);
+            } catch (error) {
+                console.error('Error processing results data:', error);
+                if (mountedRef.current) {
+                    setIsLoading(false);
+                }
+            }
+        }, (error) => {
+            console.error('Error listening to results:', error);
+            if (mountedRef.current) {
+                setIsLoading(false);
+            }
         });
-        return unsubscribe;
+        
+        return () => {
+            unsubscribe();
+        };
     }, [session.id, session.type]);
     
     const stats = useMemo(() => {

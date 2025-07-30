@@ -1,8 +1,9 @@
-import React, { useReducer, useEffect, useRef, useCallback, useState } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
-import { db, appId, firebaseNetworkHelpers } from '../../lib/firebase';
+import { appId, firebaseNetworkHelpers } from '../../lib/firebase';
+import { debounce } from '../../lib/utils';
 import { Card, Button, IconButton } from '../../components/ui';
-import { Plus, Play, Users, Trash2, Copy, RotateCcw, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Play, Users, User, Trash2, Copy, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import type { Session, ItemList, NotificationType } from '../../types';
 
 interface SessionManagerProps {
@@ -69,8 +70,32 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
 const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResults, setNotification }) => {
     const [state, dispatch] = useReducer(sessionReducer, initialState);
     const [isOnline, setIsOnline] = useState(true);
+    const [teamCodes, setTeamCodes] = useState<{[sessionId: string]: Array<{id: string, teamNumber: number, accessCode: string}>}>({});
     const mountedRef = useRef<boolean>(true);
     const unsubscribeRef = useRef<(() => void) | null>(null);
+    const createSessionRef = useRef<boolean>(false);
+
+    // チーム情報を取得する関数
+    const loadTeamCodes = useCallback(async (sessionId: string) => {
+        try {
+            const { db } = await import('../../lib/firebase');
+            const { collection, getDocs } = await import('firebase/firestore');
+            if (!db) return;
+            
+            const teamsSnapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "trainingSessions", sessionId, "teams"));
+            const teams = teamsSnapshot.docs.map((doc: any) => ({
+                id: doc.id,
+                ...doc.data()
+            })).sort((a: any, b: any) => a.teamNumber - b.teamNumber);
+            
+            setTeamCodes(prev => ({
+                ...prev,
+                [sessionId]: teams
+            }));
+        } catch (error) {
+            console.error('Error loading team codes:', error);
+        }
+    }, []);
 
     // マウント状態の管理
     useEffect(() => {
@@ -103,76 +128,108 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
     useEffect(() => {
         if (!mountedRef.current) return;
         
-        const sessionsQuery = query(collection(db, "artifacts", appId, "public", "data", "trainingSessions"));
-        const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
-            if (!mountedRef.current) return; // アンマウント後は状態を更新しない
+        // 既にリスナーが登録されている場合は何もしない
+        if (unsubscribeRef.current) {
+            return;
+        }
+        
+        // Firebaseインスタンスを動的に取得してリスナーを設定
+        import('../../lib/firebase').then(({ db }) => {
+            if (!mountedRef.current || !db) return;
             
-            try {
-                const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
-                dispatch({ 
-                    type: 'SET_SESSIONS', 
-                    payload: sessionsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-                });
+            const sessionsQuery = query(collection(db, "artifacts", appId, "public", "data", "trainingSessions"));
+            const unsubscribe = onSnapshot(sessionsQuery, (snapshot) => {
+                if (!mountedRef.current) return; // アンマウント後は状態を更新しない
                 
-                // 成功時はオンライン状態を更新
-                setIsOnline(true);
-            } catch (error) {
-                console.error('Error processing sessions data:', error);
+                try {
+                    const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
+                    dispatch({ 
+                        type: 'SET_SESSIONS', 
+                        payload: sessionsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                    });
+                    
+                    // lesson タイプのセッションのチーム情報を読み込む
+                    sessionsData
+                        .filter(session => session.type === 'lesson')
+                        .forEach(session => {
+                            loadTeamCodes(session.id);
+                        });
+                    
+                    // 成功時はオンライン状態を更新
+                    setIsOnline(true);
+                } catch (error) {
+                    console.error('Error processing sessions data:', error);
+                    if (mountedRef.current) {
+                        setNotification({ type: 'error', message: 'セッションデータの処理中にエラーが発生しました。' });
+                    }
+                }
+            }, (error) => {
+                console.error('Firestore connection error:', error);
                 if (mountedRef.current) {
-                    setNotification({ type: 'error', message: 'セッションデータの処理中にエラーが発生しました。' });
+                    setIsOnline(false);
+                    
+                    // 接続エラーの種類に応じてメッセージを変更
+                    if (error.code === 'unavailable') {
+                        setNotification({ 
+                            type: 'error', 
+                            message: 'インターネット接続を確認してください。オフラインモードで動作しています。' 
+                        });
+                    } else {
+                        setNotification({ 
+                            type: 'error', 
+                            message: 'データベース接続エラーが発生しました。しばらく後にお試しください。' 
+                        });
+                    }
                 }
-            }
-        }, (error) => {
-            console.error('Firestore connection error:', error);
+            });
+            
+            unsubscribeRef.current = unsubscribe;
+        }).catch(error => {
+            console.error('Failed to load Firebase:', error);
             if (mountedRef.current) {
-                setIsOnline(false);
-                
-                // 接続エラーの種類に応じてメッセージを変更
-                if (error.code === 'unavailable') {
-                    setNotification({ 
-                        type: 'error', 
-                        message: 'インターネット接続を確認してください。オフラインモードで動作しています。' 
-                    });
-                } else {
-                    setNotification({ 
-                        type: 'error', 
-                        message: 'データベース接続エラーが発生しました。しばらく後にお試しください。' 
-                    });
-                }
+                setNotification({ type: 'error', message: 'Firebase の初期化に失敗しました。' });
             }
         });
-        
-        unsubscribeRef.current = unsubscribe;
-        
-        return () => {
-            if (unsubscribeRef.current) {
-                unsubscribeRef.current();
-            }
-        };
-    }, [setNotification]);
+    }, [setNotification, loadTeamCodes]);
 
-    const generateAccessCode = (): string => Math.floor(1000 + Math.random() * 9000).toString();
+    // アクセスコード生成関数
+    const generateAccessCode = () => Math.floor(1000 + Math.random() * 9000).toString();
 
-    const createSession = useCallback(async () => {
-        if (!mountedRef.current || !state.newSessionName || !state.selectedItemListId) { 
+    // セッション作成関数（内部）
+    const createSessionInternal = useCallback(async () => {
+        if (createSessionRef.current) return; // 重複実行を防止
+        
+        if (!mountedRef.current || !state.newSessionName || !state.selectedItemListId) {
             if (mountedRef.current) {
-                setNotification({ type: 'error', message: '必要な項目を入力してください。' }); 
+                setNotification({ type: 'error', message: '必要な項目を入力してください。' });
             }
-            return; 
+            return;
         }
         
         if (state.isSubmitting) return; // 重複実行を防止
         
+        createSessionRef.current = true;
         dispatch({ type: 'SET_IS_SUBMITTING', payload: true });
+        
         try {
-            const sessionDoc = await addDoc(collection(db, "artifacts", appId, "public", "data", "trainingSessions"), {
+            // Firebaseインスタンスを動的に取得
+            const { db } = await import('../../lib/firebase');
+            if (!db) throw new Error('Firebase database not initialized');
+            
+            const sessionData: any = {
                 name: state.newSessionName,
                 type: state.newSessionType,
                 itemListId: state.selectedItemListId,
-                accessCode: generateAccessCode(),
                 createdAt: serverTimestamp(),
                 isActive: false
-            });
+            };
+            
+            // workshopタイプの場合のみセッション自体にaccessCodeを設定
+            if (state.newSessionType === 'workshop') {
+                sessionData.accessCode = generateAccessCode();
+            }
+            
+            const sessionDoc = await addDoc(collection(db, "artifacts", appId, "public", "data", "trainingSessions"), sessionData);
             
             if (state.newSessionType === 'lesson' && mountedRef.current) {
                 const teamPromises = [];
@@ -188,13 +245,14 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                     );
                 }
                 await Promise.all(teamPromises);
+                
+                // チーム情報を読み込む
+                await loadTeamCodes(sessionDoc.id);
             }
             
             if (mountedRef.current) {
                 setNotification({ type: 'success', message: 'セッションを作成しました。' });
-                dispatch({ type: 'SET_NEW_SESSION_NAME', payload: '' });
-                dispatch({ type: 'SET_SELECTED_ITEM_LIST_ID', payload: '' });
-                dispatch({ type: 'SET_TEAM_COUNT', payload: 2 });
+                dispatch({ type: 'RESET_FORM' });
             }
         } catch (error) {
             console.error('Error creating session:', error);
@@ -205,12 +263,23 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
             if (mountedRef.current) {
                 dispatch({ type: 'SET_IS_SUBMITTING', payload: false });
             }
+            createSessionRef.current = false;
         }
     }, [state.newSessionName, state.selectedItemListId, state.newSessionType, state.teamCount, state.isSubmitting, setNotification]);
 
+    // デバウンスされたセッション作成関数（1秒間の連続クリックを防止）
+    const createSession = useMemo(
+        () => debounce(createSessionInternal, 1000),
+        [createSessionInternal]
+    );
+
     const deleteSession = useCallback(async (sessionId: string) => {
         if (!mountedRef.current || !confirm('このセッションを削除しますか？この操作は取り消せません。')) return;
+        
         try {
+            const { db } = await import('../../lib/firebase');
+            if (!db) throw new Error('Firebase database not initialized');
+            
             await deleteDoc(doc(db, "artifacts", appId, "public", "data", "trainingSessions", sessionId));
             if (mountedRef.current) {
                 setNotification({ type: 'success', message: 'セッションを削除しました。' });
@@ -225,7 +294,11 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
 
     const resetSession = async (session: Session) => {
         if (!confirm('このセッションをリセットしますか？すべての回答が削除されます。')) return;
+        
         try {
+            const { db } = await import('../../lib/firebase');
+            if (!db) throw new Error('Firebase database not initialized');
+            
             const sessionRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", session.id);
             
             if (session.type === 'lesson') {
@@ -275,89 +348,146 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
             {/* セッション作成フォーム */}
             <Card>
                 <div className="space-y-4">
+                    <div className="text-center mb-6">
+                        <h3 className="text-xl font-bold theme-text-primary mb-2">新しいセッションを作成</h3>
+                        <p className="theme-text-secondary">授業やワークショップで使用するセッションを作成します</p>
+                    </div>
+
                     {/* セッション名入力 */}
                     <div>
-                        <label className="block text-sm font-medium theme-text-primary mb-2">セッション名</label>
+                        <label className="block text-sm font-medium theme-text-primary mb-2">
+                            セッション名 <span className="text-red-500">*</span>
+                        </label>
                         <input 
                             type="text" 
                             value={state.newSessionName}
                             onChange={(e) => dispatch({ type: 'SET_NEW_SESSION_NAME', payload: e.target.value })}
-                            className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                            placeholder="例: 1組 防災訓練"
+                            placeholder="例: 1年A組 防災訓練"
+                            className="w-full px-4 py-3 theme-input text-lg"
+                            disabled={state.isSubmitting}
                         />
                     </div>
 
-                    {/* セッションタイプ選択ボタン */}
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'lesson' })}
-                            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-                                state.newSessionType === 'lesson'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-700 theme-text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
-                            }`}
-                        >
-                            授業（チーム制）
-                        </button>
-                        <button
-                            onClick={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'workshop' })}
-                            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
-                                state.newSessionType === 'workshop'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-700 theme-text-primary hover:bg-gray-300 dark:hover:bg-gray-600'
-                            }`}
-                        >
-                            ワークショップ（個人参加）
-                        </button>
-                    </div>
-
-                    {/* チーム数（授業モード時のみ） */}
-                    {state.newSessionType === 'lesson' && (
-                        <div>
-                            <label className="block text-sm font-medium theme-text-primary mb-2">チーム数</label>
-                            <input 
-                                type="number" 
-                                min="1" 
-                                max="50" 
-                                value={state.teamCount}
-                                onChange={(e) => dispatch({ type: 'SET_TEAM_COUNT', payload: parseInt(e.target.value) || 2 })}
-                                className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                title="チーム数を入力してください"
-                                placeholder="2"
-                            />
-                        </div>
-                    )}
-
-                    {/* アイテムリスト選択 */}
+                    {/* セッションタイプ選択 */}
                     <div>
-                        <label className="block text-sm font-medium theme-text-primary mb-2">アイテムリスト</label>
-                        <select 
-                            value={state.selectedItemListId}
-                            onChange={(e) => dispatch({ type: 'SET_SELECTED_ITEM_LIST_ID', payload: e.target.value })}
-                            className="w-full p-3 rounded-lg theme-bg-input theme-text-primary border theme-border focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            title="使用するアイテムリストを選択してください"
-                        >
-                            <option value="">基本セット</option>
-                            {itemLists.filter(itemList => !itemList.isDefault).map((itemList) => (
-                                <option key={itemList.id} value={itemList.id}>{itemList.name}</option>
-                            ))}
-                        </select>
+                        <label className="block text-sm font-medium theme-text-primary mb-3">
+                            セッションタイプ <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 p-1 theme-bg-input rounded-lg">
+                            <label className={`flex flex-col items-center p-4 rounded-md cursor-pointer transition-all border-2 ${
+                                state.newSessionType === 'lesson' 
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg' 
+                                    : 'theme-bg-secondary theme-text-secondary border-transparent hover:theme-bg-hover hover:border-blue-200'
+                            }`}>
+                                <input 
+                                    type="radio" 
+                                    value="lesson" 
+                                    checked={state.newSessionType === 'lesson'}
+                                    onChange={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'lesson' })}
+                                    className="hidden"
+                                    disabled={state.isSubmitting}
+                                />
+                                <Users className="w-8 h-8 mb-2" />
+                                <span className="font-semibold">授業（チーム分け）</span>
+                                <span className="text-sm opacity-75 mt-1">複数チームでの参加</span>
+                            </label>
+                            <label className={`flex flex-col items-center p-4 rounded-md cursor-pointer transition-all border-2 ${
+                                state.newSessionType === 'workshop' 
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg' 
+                                    : 'theme-bg-secondary theme-text-secondary border-transparent hover:theme-bg-hover hover:border-blue-200'
+                            }`}>
+                                <input 
+                                    type="radio" 
+                                    value="workshop" 
+                                    checked={state.newSessionType === 'workshop'}
+                                    onChange={() => dispatch({ type: 'SET_NEW_SESSION_TYPE', payload: 'workshop' })}
+                                    className="hidden"
+                                    disabled={state.isSubmitting}
+                                />
+                                <User className="w-8 h-8 mb-2" />
+                                <span className="font-semibold">ワークショップ（個人参加）</span>
+                                <span className="text-sm opacity-75 mt-1">個人での参加</span>
+                            </label>
+                        </div>
                     </div>
 
-                    {/* セッション作成ボタン */}
-                    <Button 
-                        onClick={createSession} 
-                        disabled={state.isSubmitting || !state.newSessionName || !isOnline}
-                        className="w-full py-3 text-lg bg-slate-700 hover:bg-slate-600 text-white disabled:opacity-50"
-                        icon={Plus}
-                    >
-                        {!isOnline 
-                            ? 'オフライン（セッション作成不可）' 
-                            : state.isSubmitting 
-                                ? 'セッション作成中...' 
-                                : 'セッション作成'
-                        }
-                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* チーム数設定（授業モードのみ） */}
+                        {state.newSessionType === 'lesson' && (
+                            <div>
+                                <label className="block text-sm font-medium theme-text-primary mb-2">
+                                    チーム数 <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        title="チーム数"
+                                        value={state.teamCount}
+                                        onChange={(e) => dispatch({ type: 'SET_TEAM_COUNT', payload: Math.max(1, parseInt(e.target.value) || 1) })}
+                                        min="1"
+                                        max="20"
+                                        className="w-full px-4 py-3 theme-input text-lg text-center font-semibold"
+                                        disabled={state.isSubmitting}
+                                    />
+                                    <div className="mt-1 text-xs text-gray-500 text-center">
+                                        各チームに個別の参加コードが生成されます
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* アイテムリスト選択 */}
+                        <div className={state.newSessionType === 'lesson' ? '' : 'md:col-span-2'}>
+                            <label className="block text-sm font-medium theme-text-primary mb-2">
+                                アイテムリスト <span className="text-red-500">*</span>
+                            </label>
+                            <select 
+                                title="アイテムリスト"
+                                value={state.selectedItemListId}
+                                onChange={(e) => dispatch({ type: 'SET_SELECTED_ITEM_LIST_ID', payload: e.target.value })}
+                                className="w-full px-4 py-3 theme-input text-lg"
+                                disabled={state.isSubmitting}
+                            >
+                                <option value="">アイテムリストを選択してください</option>
+                                {itemLists.map(list => (
+                                    <option key={list.id} value={list.id}>
+                                        {list.name}
+                                        {list.isDefault && ' (基本)'}
+                                    </option>
+                                ))}
+                            </select>
+                            {state.selectedItemListId && (
+                                <div className="mt-1 text-xs text-gray-500">
+                                    選択されたリスト: {itemLists.find(l => l.id === state.selectedItemListId)?.items.length || 0}個のアイテム
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 作成ボタン */}
+                    <div className="flex justify-center pt-6 border-t theme-border">
+                        <Button 
+                            onClick={createSession}
+                            disabled={state.isSubmitting || !state.newSessionName || !state.selectedItemListId || itemLists.length === 0}
+                            className={`flex items-center px-8 py-4 text-lg font-semibold rounded-xl transition-all ${
+                                state.isSubmitting || !state.newSessionName || !state.selectedItemListId || itemLists.length === 0
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg transform hover:scale-105'
+                            }`}
+                        >
+                            {state.isSubmitting ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                                    セッション作成中...
+                                </>
+                            ) : (
+                                <>
+                                    <Plus size={20} className="mr-3" />
+                                    セッション作成
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </div>
             </Card>
 
@@ -392,22 +522,55 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                                     {session.type === 'lesson' ? '授業' : 'ワークショップ'}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-4 text-sm theme-text-secondary">
-                                                <span>アクセスコード: <span className="font-mono font-bold text-lg">{session.accessCode}</span></span>
-                                                <button 
-                                                    onClick={() => copyAccessCode(session.accessCode)} 
-                                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors"
-                                                    title="コピー"
-                                                >
-                                                    <Copy size={14} />
-                                                </button>
+                                            <div className="text-sm theme-text-secondary">
+                                                {session.type === 'lesson' ? (
+                                                    <div>
+                                                        <div className="mb-2">
+                                                            <span>作成: {session.createdAt ? new Date(session.createdAt.seconds * 1000).toLocaleDateString('ja-JP') : '不明'}</span>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <span className="font-medium">チーム別参加コード:</span>
+                                                            {teamCodes[session.id] ? (
+                                                                <div className="grid grid-cols-2 gap-2 mt-2">
+                                                                    {teamCodes[session.id].map((team) => (
+                                                                        <div key={team.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded">
+                                                                            <span className="text-sm">チーム {team.teamNumber}:</span>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <strong className="font-mono text-sm">{team.accessCode}</strong>
+                                                                                <button
+                                                                                    onClick={() => copyAccessCode(team.accessCode)}
+                                                                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                                                    title="コピー"
+                                                                                >
+                                                                                    <Copy size={12} />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-gray-500">読み込み中...</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-4">
+                                                        <span>共通コード: <strong className="font-mono">{session.accessCode}</strong></span>
+                                                        <span>作成: {session.createdAt ? new Date(session.createdAt.seconds * 1000).toLocaleDateString('ja-JP') : '不明'}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 ml-4">
-                                            <Button onClick={() => onViewResults(session)} icon={Play} className="text-sm">
-                                                結果を見る
-                                            </Button>
-                                            <IconButton onClick={() => resetSession(session)} title="リセット" className="hover:bg-gray-100 dark:hover:bg-gray-700">
+                                        <div className="flex items-center gap-2">
+                                            {session.type === 'workshop' && (
+                                                <IconButton onClick={() => copyAccessCode(session.accessCode)} title="コードをコピー" className="theme-copy-icon">
+                                                    <Copy size={16} />
+                                                </IconButton>
+                                            )}
+                                            <IconButton onClick={() => onViewResults(session)} title="結果を見る" className="theme-view-icon">
+                                                <Play size={16} />
+                                            </IconButton>
+                                            <IconButton onClick={() => resetSession(session)} title="リセット" className="theme-reset-icon">
                                                 <RotateCcw size={16} />
                                             </IconButton>
                                             <IconButton onClick={() => deleteSession(session.id)} title="削除" className="theme-delete-icon hover:bg-red-50 dark:hover:bg-red-900/20">

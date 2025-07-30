@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactStrictMode: false, // 一時的にfalseにしてエラーを特定
+  reactStrictMode: true, // プロダクション準拠に戻す
   // 環境変数の明示的な設定（Turbopack対応）
   env: {
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
