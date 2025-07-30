@@ -533,13 +533,13 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                                             {teamCodes[session.id] ? (
                                                                 <div className="grid grid-cols-2 gap-2 mt-2">
                                                                     {teamCodes[session.id].map((team) => (
-                                                                        <div key={team.id} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded">
-                                                                            <span className="text-sm">チーム {team.teamNumber}:</span>
+                                                                        <div key={team.id} className="flex items-center justify-between theme-bg-secondary theme-border px-3 py-2 rounded">
+                                                                            <span className="text-sm theme-text-primary">チーム {team.teamNumber}:</span>
                                                                             <div className="flex items-center gap-2">
-                                                                                <strong className="font-mono text-sm">{team.accessCode}</strong>
+                                                                                <strong className="font-mono text-sm theme-text-primary">{team.accessCode}</strong>
                                                                                 <button
                                                                                     onClick={() => copyAccessCode(team.accessCode)}
-                                                                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                                                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
                                                                                     title="コピー"
                                                                                 >
                                                                                     <Copy size={12} />
@@ -549,14 +549,14 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                                                     ))}
                                                                 </div>
                                                             ) : (
-                                                                <span className="text-gray-500">読み込み中...</span>
+                                                                <span className="theme-text-secondary">読み込み中...</span>
                                                             )}
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-4">
-                                                        <span>共通コード: <strong className="font-mono">{session.accessCode}</strong></span>
-                                                        <span>作成: {session.createdAt ? new Date(session.createdAt.seconds * 1000).toLocaleDateString('ja-JP') : '不明'}</span>
+                                                        <span className="theme-text-primary">共通コード: <strong className="font-mono theme-text-primary">{session.accessCode}</strong></span>
+                                                        <span className="theme-text-secondary">作成: {session.createdAt ? new Date(session.createdAt.seconds * 1000).toLocaleDateString('ja-JP') : '不明'}</span>
                                                     </div>
                                                 )}
                                             </div>
