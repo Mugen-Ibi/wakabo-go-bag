@@ -3,17 +3,28 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 import { getFunctions, Functions } from 'firebase/functions';
+import type { SessionType } from '../types';
 
-// Firebaseの設定
+// Firebaseの設定（.env に定義された NEXT_PUBLIC_* を使用）
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyD9yEQy_7iKfnLLqwfglkaVLcKceMS3MsA',
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'emergency-go-bag.firebaseapp.com',
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'emergency-go-bag',
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'emergency-go-bag.appspot.com',
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '7832059811',
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:7832059811:web:9d436c185a47937d0fe416',
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-JNVXK8LXVH'
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
+
+// 必須キーの簡易チェック（不足時は警告）
+(() => {
+  const missing = Object.entries(firebaseConfig)
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length) {
+    console.warn('[firebase] Missing config keys from env:', missing.join(', '));
+  }
+})();
 
 // Firebase初期化のヘルパー関数
 function initFirebase() {
@@ -38,8 +49,8 @@ export const db = getDbInstance();
 export const auth = getAuthInstance();
 export const functions = getFunctionsInstance();
 
-// appIdを動的に設定できるように
-export const appId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'emergency-go-bag';
+// appId は必須（.env の NEXT_PUBLIC_FIREBASE_PROJECT_ID）
+export const appId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID as string;
 
 // ネットワーク状態管理のヘルパー
 export const firebaseNetworkHelpers = {
@@ -111,7 +122,16 @@ export const firestorePaths = {
 // よく使用されるFirestore操作のヘルパー関数
 export const firestoreHelpers = {
   // セッション作成時のバッチ処理
-  createSessionWithTeams: async (sessionData: any, teamCount: number) => {
+  createSessionWithTeams: async (
+    sessionData: {
+      name: string;
+      type: SessionType;
+      itemListId: string;
+      isActive: boolean;
+      accessCode?: string;
+    },
+    teamCount: number
+  ) => {
     const { writeBatch, collection, doc, serverTimestamp } = await import('firebase/firestore');
     
     const batch = writeBatch(db);

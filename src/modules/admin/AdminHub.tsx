@@ -8,6 +8,7 @@ import ItemListManager from './ItemListManager';
 import ResultsDashboard from './ResultsDashboard';
 import { Clapperboard, List } from 'lucide-react';
 import type { ItemList, NotificationType, Session } from '../../types';
+import { toMillis, formatJaDateFrom } from '../../lib/time';
 
 interface AdminHubProps {
   setNotification: (n: NotificationType) => void;
@@ -75,14 +76,8 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
         const sessionsCollection = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
         const q = query(sessionsCollection);
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const list = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Session[];
-            // createdAt の降順で並べる（Firebase Timestamp | Date | null を許容）
-            const toMillis = (dt: Session['createdAt']): number => {
-                if (!dt) return 0;
-                if (dt instanceof Date) return dt.getTime();
-                if (typeof dt === 'object' && 'seconds' in dt) return dt.seconds * 1000 + Math.floor(dt.nanoseconds / 1e6);
-                return 0;
-            };
+            const list = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) })) as Session[];
+            // createdAt の降順で並べる
             list.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
             setSessions(list);
         });
@@ -146,7 +141,9 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                                 >
                                     <option value="">未選択</option>
                                     {sessions.map((s) => (
-                                        <option key={s.id} value={s.id}>{s.name || '(名称未設定)'} / {s.type}</option>
+                                        <option key={s.id} value={s.id}>
+                                            {(s.name || '(名称未設定)')} / {s.type} / 作成: {formatJaDateFrom(s.createdAt)}
+                                        </option>
                                     ))}
                                 </select>
                             </div>

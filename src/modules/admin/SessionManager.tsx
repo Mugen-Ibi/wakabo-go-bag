@@ -5,6 +5,7 @@ import { debounce } from '../../lib/utils';
 import { Card, Button, IconButton } from '../../components/ui';
 import { Plus, Play, Users, User, Trash2, Copy, RotateCcw, Wifi, WifiOff } from 'lucide-react';
 import type { Session, ItemList, NotificationType } from '../../types';
+import { toMillis, formatJaDateFrom } from '../../lib/time';
 
 interface SessionManagerProps {
   itemLists: ItemList[];
@@ -83,10 +84,12 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
             if (!db) return;
             
             const teamsSnapshot = await getDocs(collection(db, "artifacts", appId, "public", "data", "trainingSessions", sessionId, "teams"));
-            const teams = teamsSnapshot.docs.map((doc: any) => ({
-                id: doc.id,
-                ...doc.data()
-            })).sort((a: any, b: any) => a.teamNumber - b.teamNumber);
+            const teams: Array<{ id: string; teamNumber: number; accessCode: string }> = teamsSnapshot.docs
+                .map((d) => {
+                    const data = d.data() as { teamNumber?: number; accessCode?: string };
+                    return { id: d.id, teamNumber: data.teamNumber ?? 0, accessCode: data.accessCode ?? '' };
+                })
+                .sort((a, b) => a.teamNumber - b.teamNumber);
             
             setTeamCodes(prev => ({
                 ...prev,
@@ -142,13 +145,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                 if (!mountedRef.current) return; // アンマウント後は状態を更新しない
                 
                 try {
-                    const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Session));
-                    const toMillis = (dt: Session['createdAt']): number => {
-                        if (!dt) return 0;
-                        if (dt instanceof Date) return dt.getTime();
-                        if (typeof dt === 'object' && 'seconds' in dt) return dt.seconds * 1000 + Math.floor(dt.nanoseconds / 1e6);
-                        return 0;
-                    };
+                    const sessionsData = snapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) } as Session));
                     dispatch({ 
                         type: 'SET_SESSIONS', 
                         payload: sessionsData.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
@@ -222,7 +219,14 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
             const { db } = await import('../../lib/firebase');
             if (!db) throw new Error('Firebase database not initialized');
             
-            const sessionData: any = {
+            const sessionData: {
+                name: string;
+                type: 'lesson' | 'workshop';
+                itemListId: string;
+                createdAt: ReturnType<typeof serverTimestamp>;
+                isActive: boolean;
+                accessCode?: string;
+            } = {
                 name: state.newSessionName,
                 type: state.newSessionType,
                 itemListId: state.selectedItemListId,
@@ -532,7 +536,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                                 {session.type === 'lesson' ? (
                                                     <div>
                                                         <div className="mb-2">
-                                                            <span>作成: {(() => { const dt = session.createdAt; if (!dt) return '不明'; if (dt instanceof Date) return dt.toLocaleDateString('ja-JP'); if (typeof dt === 'object' && 'seconds' in dt) return new Date(dt.seconds * 1000).toLocaleDateString('ja-JP'); return '不明'; })()}</span>
+                                                            <span>作成: {formatJaDateFrom(session.createdAt)}</span>
                                                         </div>
                                                         <div className="space-y-1">
                                                             <span className="font-medium">チーム別参加コード:</span>
@@ -562,7 +566,7 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                                 ) : (
                                                     <div className="flex items-center gap-4">
                                                         <span className="theme-text-primary">共通コード: <strong className="font-mono theme-text-primary">{session.accessCode}</strong></span>
-                                                        <span className="theme-text-secondary">作成: {(() => { const dt = session.createdAt; if (!dt) return '不明'; if (dt instanceof Date) return dt.toLocaleDateString('ja-JP'); if (typeof dt === 'object' && 'seconds' in dt) return new Date(dt.seconds * 1000).toLocaleDateString('ja-JP'); return '不明'; })()}</span>
+                                                        <span className="theme-text-secondary">作成: {formatJaDateFrom(session.createdAt)}</span>
                                                     </div>
                                                 )}
                                             </div>

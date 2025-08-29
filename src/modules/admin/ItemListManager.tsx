@@ -64,7 +64,7 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
                 const sessionsRef = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
                 const q = query(sessionsRef, where("itemListId", "==", listToDelete.id));
                 const snap = await getDocs(q);
-                const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+                const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as Session));
                 setSessionsUsingList(used);
             } catch (e) {
                 console.error('Failed to check list usage', e);
@@ -101,7 +101,7 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
             const sessionsRef = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
             const q = query(sessionsRef, where("itemListId", "==", listToDelete.id));
             const snap = await getDocs(q);
-            const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+            const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as Session));
             setSessionsUsingList(used);
         } catch (e) {
             console.error('Bulk replace failed', e);
@@ -160,7 +160,7 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
             <Card>
                 <div className="flex flex-col sm:flex-row items-stretch justify-center gap-2">
                     <input type="text" value={newListName} onChange={(e) => setNewListName(e.target.value)} placeholder="新しいリスト名 (例: 水害対策セット)" className="flex-grow p-2 rounded-lg theme-bg-input theme-text-primary theme-border" />
-                    <Button onClick={handleCreateList} icon={PlusCircle as any}>リスト作成</Button>
+                    <Button onClick={handleCreateList} icon={PlusCircle}>リスト作成</Button>
                 </div>
             </Card>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -169,7 +169,7 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
                         <div className="flex justify-between items-center mb-3">
                             <h3 className="text-xl font-bold theme-text-primary">{list.name} {list.isDefault && "(基本)"}</h3>
                             <div className="flex items-center gap-2">
-                                <Button onClick={() => setEditingList(list)} className="bg-green-600 hover:bg-green-700 text-sm py-1 px-3" icon={Edit as any}>編集</Button>
+                                <Button onClick={() => setEditingList(list)} className="bg-green-600 hover:bg-green-700 text-sm py-1 px-3" icon={Edit}>編集</Button>
                                 {!list.isDefault && <IconButton onClick={() => setListToDelete(list)} className="theme-delete-icon" title="リストを削除"><Trash2 size={20} /></IconButton>}
                             </div>
                         </div>
@@ -219,7 +219,7 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
                         <Button 
                             onClick={() => setShowAddItemModal(true)} 
                             className="bg-green-600 hover:bg-green-700" 
-                            icon={PlusCircle as any}
+                            icon={PlusCircle}
                         >
                             新しいアイテム追加
                         </Button>

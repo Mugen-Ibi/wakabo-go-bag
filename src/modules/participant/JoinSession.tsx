@@ -3,7 +3,7 @@ import { collection, query, where, getDocs, getDoc, collectionGroup, doc } from 
 import { db, appId } from '../../lib/firebase';
 import { Card, Button } from '../../components/ui';
 import { LogIn } from 'lucide-react';
-import type { Session, ItemList, SessionInfo } from '../../types';
+import type { Session, ItemList, SessionInfo, SessionType } from '../../types';
 
 type Team = { id: string; teamNumber?: number; selectedItems?: string[]; isSubmitted?: boolean };
 
@@ -33,8 +33,8 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
             const wsSnapshot = await getDocs(wsQuery);
             if (!wsSnapshot.empty) {
                 const sessionDoc = wsSnapshot.docs[0];
-                const sData = sessionDoc.data() as Session;
-                const itemListId = (sData as any).itemListId;
+                const sData = sessionDoc.data() as Partial<Session> & { itemListId?: string; name?: string; type?: SessionType };
+                const itemListId = sData.itemListId;
                 if (!itemListId) { setError("このセッションのアイテムリストが見つかりませんでした（設定不足）。管理者にお問い合わせください。"); return; }
                 const itemListDocSnap = await getDoc(doc(db, "artifacts", appId, "public", "data", "itemLists", itemListId));
                 if (!itemListDocSnap.exists()) { setError("アイテムリストが削除されている可能性があります。管理者にお問い合わせください。"); return; }
@@ -58,8 +58,8 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
                 if (!sessionDocRef) { setError("セッション情報が取得できませんでした。"); return; }
                 const sessionDocSnap = await getDoc(sessionDocRef);
                 if (!sessionDocSnap.exists()) { setError("セッション情報が取得できませんでした。"); return; }
-                const sData = sessionDocSnap.data() as Session;
-                const itemListId = (sData as any).itemListId;
+                const sData = sessionDocSnap.data() as Partial<Session> & { itemListId?: string; name?: string; type?: SessionType };
+                const itemListId = sData.itemListId;
                 if (!itemListId) { setError("このセッションのアイテムリストが見つかりませんでした（設定不足）。管理者にお問い合わせください。"); return; }
                 const itemListDocSnap = await getDoc(doc(db, "artifacts", appId, "public", "data", "itemLists", itemListId));
                 if (!itemListDocSnap.exists()) { setError("アイテムリストが削除されている可能性があります。管理者にお問い合わせください。"); return; }

@@ -16,13 +16,18 @@ pnpm install
 
 ### 2. 環境変数の設定
 
-`.env.example`ファイルをコピーして`.env`ファイルを作成してください：
+`.env.example` をコピーして `.env` を作成してください。
 
-```bash
-cp .env.example .env
-```
+- Windows (PowerShell):
+  ```powershell
+  Copy-Item .env.example .env
+  ```
+- macOS/Linux:
+  ```bash
+  cp .env.example .env
+  ```
 
-`.env`ファイルでFirebaseの設定値を設定してください：
+`.env` に Firebase の設定値を記入してください：
 
 ```env
 # Firebase設定
@@ -89,9 +94,22 @@ service cloud.firestore {
 ```
 
 ### 本番環境での注意事項
-- `.env`ファイルは`.gitignore`に含まれており、コミットされません
+- `.env` は `.gitignore` に含まれており、コミットされません
 - 本番環境では環境変数を適切に設定してください
-- より機密性の高い情報（Admin SDK Key等）は`NEXT_PUBLIC_`プレフィックスを**使用せず**、サーバーサイドでのみ使用してください
+- より機密性の高い情報（Admin SDK Key 等）は `NEXT_PUBLIC_` を付けず、サーバーサイド専用変数として管理してください
+
+## 開発メモ（Lint/Build）
+
+- 本プロジェクトでは Next.js のビルド内 Lint を無効化し、ESLint CLI を使用しています。
+  - Lint 実行：
+    ```powershell
+    npm run lint
+    ```
+  - ビルド（lint → build の順で実行）：
+    ```powershell
+    npm run build
+    ```
+  - ルールは `eslint.config.mjs`（Flat Config）で管理しています。
 
 ## Learn More
 

@@ -1,15 +1,39 @@
-// Flat ESLint config for Next.js 15
-import next from 'eslint-config-next';
+// Flat ESLint config without Next's runner/patch to avoid @rushstack/eslint-patch warnings
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import reactHooks from 'eslint-plugin-react-hooks';
 
+/** @type {import('eslint').Linter.FlatConfig[]} */
 export default [
-  ...next,
   {
+    ignores: ['.next/**', 'node_modules/**', 'dist/**', 'out/**'],
+  },
+  {
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    languageOptions: {
+      parser: tsParser,
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+        project: false,
+      },
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        console: 'readonly',
+      },
+    },
+    plugins: {
+      'typescript-eslint': tsPlugin,
+      'react-hooks': reactHooks,
+    },
     rules: {
-      // Loosen strict rules to avoid blocking prod builds for now
-      '@typescript-eslint/no-explicit-any': 'off',
-      'prefer-spread': 'off',
-      // NOTE: This can hide real bugs; re-enable after fixing ui.tsx
-      'react-hooks/rules-of-hooks': 'off',
+      // parity with previous rules
+      'react-hooks/rules-of-hooks': 'error',
+      'prefer-spread': 'error',
+      'typescript-eslint/no-explicit-any': 'error',
     },
   },
 ];
