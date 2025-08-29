@@ -16,6 +16,7 @@ interface AdminHubProps {
 const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
     const [view, setView] = useState<'sessions' | 'lists' | 'results'>('sessions'); // デフォルトをsessionsに戻す
     const [itemLists, setItemLists] = useState<ItemList[]>([]);
+    const [sessions, setSessions] = useState<Session[]>([]);
     const [selectedSession, setSelectedSession] = useState<Session | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -69,6 +70,25 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
         loadItemLists();
     }, [setNotification]); // viewを依存配列から削除
 
+    // セッション一覧を購読（結果分析ページで選択できるように）
+    useEffect(() => {
+        const sessionsCollection = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
+        const q = query(sessionsCollection);
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const list = snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Session[];
+            // createdAt の降順で並べる（Firebase Timestamp | Date | null を許容）
+            const toMillis = (dt: Session['createdAt']): number => {
+                if (!dt) return 0;
+                if (dt instanceof Date) return dt.getTime();
+                if (typeof dt === 'object' && 'seconds' in dt) return dt.seconds * 1000 + Math.floor(dt.nanoseconds / 1e6);
+                return 0;
+            };
+            list.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+            setSessions(list);
+        });
+        return () => unsubscribe();
+    }, []);
+
     const handleViewResults = (session: Session) => {
         setSelectedSession(session);
         setView('results');
@@ -109,7 +129,43 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
             case 'lists':
                 return <ItemListManager itemLists={itemLists} setNotification={setNotification} />;
             case 'results':
-                return selectedSession ? <ResultsDashboard session={selectedSession} /> : <div className="text-center p-10 theme-text-primary">セッションが選択されていません</div>;
+                return (
+                    <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-2">
+                                <label htmlFor="results-session-select" className="text-sm theme-text-secondary">セッション選択</label>
+                                <select
+                                    id="results-session-select"
+                                    aria-label="結果分析で表示するセッション"
+                                    value={selectedSession?.id || ''}
+                                    onChange={(e) => {
+                                        const s = sessions.find((x) => x.id === e.target.value) || null;
+                                        setSelectedSession(s);
+                                    }}
+                                    className="px-2 py-1 rounded theme-bg-input theme-text-primary theme-border text-sm"
+                                >
+                                    <option value="">未選択</option>
+                                    {sessions.map((s) => (
+                                        <option key={s.id} value={s.id}>{s.name || '(名称未設定)'} / {s.type}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedSession && (
+                                <button
+                                    className="text-sm theme-text-secondary hover:underline"
+                                    onClick={() => setSelectedSession(null)}
+                                >
+                                    選択をクリア
+                                </button>
+                            )}
+                        </div>
+                        {selectedSession ? (
+                            <ResultsDashboard session={selectedSession} />
+                        ) : (
+                            <div className="text-center p-10 theme-text-primary">セッションを選択してください</div>
+                        )}
+                    </div>
+                );
             default:
                 return null;
         }

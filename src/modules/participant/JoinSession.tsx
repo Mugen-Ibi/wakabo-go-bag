@@ -3,11 +3,11 @@ import { collection, query, where, getDocs, getDoc, collectionGroup, doc } from 
 import { db, appId } from '../../lib/firebase';
 import { Card, Button } from '../../components/ui';
 import { LogIn } from 'lucide-react';
-import type { Session, ItemList } from '../../types';
+import type { Session, ItemList, SessionInfo } from '../../types';
 
-type Team = { id: string; [key: string]: any };
+type Team = { id: string; teamNumber?: number; selectedItems?: string[]; isSubmitted?: boolean };
 
-interface Props { onJoin: (info: any) => void; }
+interface Props { onJoin: (info: SessionInfo) => void; }
 
 const JoinSession: React.FC<Props> = ({ onJoin }) => {
     const [accessCode, setAccessCode] = useState<string>("");
@@ -41,7 +41,8 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
                 const itemList = { id: itemListDocSnap.id, ...itemListDocSnap.data() };
                 onJoin({
                     type: 'workshop',
-                    session: { id: sData.id || sessionDoc.id, name: sData.name || '' },
+                    sessionId: sData.id || sessionDoc.id,
+                    sessionName: sData.name || '',
                     itemList: itemList as ItemList,
                 });
                 return;
@@ -65,13 +66,9 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
                 const itemList = { id: itemListDocSnap.id, ...itemListDocSnap.data() };
                 onJoin({
                     type: 'lesson',
-                    session: { id: sessionDocSnap.id, name: sData.name || '' },
-                    team: {
-                        id: teamDoc.id,
-                        teamNumber: teamData.teamNumber,
-                        selectedItems: teamData.selectedItems || [],
-                        isSubmitted: teamData.isSubmitted || false,
-                    },
+                    sessionId: sessionDocSnap.id,
+                    sessionName: sData.name || '',
+                    teamNumber: teamData.teamNumber,
                     itemList: itemList as ItemList,
                 });
                 return;
@@ -85,7 +82,7 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
         }
     };
 
-    return ( <Card><h2 className="text-2xl font-bold mb-4 text-center theme-text-primary">セッションに参加</h2><div className="flex flex-col items-center gap-4"><input type="text" value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="4桁の参加コード" maxLength={8} className="p-3 rounded-lg text-2xl text-center font-mono tracking-widest w-48 theme-bg-input theme-text-primary theme-border"/>{error && <p className="text-red-500 text-sm">{error}</p>}<Button onClick={handleJoin} disabled={isLoading} icon={LogIn as any}>{isLoading ? "参加中..." : "参加する"}</Button></div></Card> );
+    return ( <Card><h2 className="text-2xl font-bold mb-4 text-center theme-text-primary">セッションに参加</h2><div className="flex flex-col items-center gap-4"><input type="text" value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="4桁の参加コード" maxLength={8} className="p-3 rounded-lg text-2xl text-center font-mono tracking-widest w-48 theme-bg-input theme-text-primary theme-border"/>{error && <p className="text-red-500 text-sm">{error}</p>}<Button onClick={handleJoin} disabled={isLoading} icon={LogIn}>{isLoading ? "参加中..." : "参加する"}</Button></div></Card> );
 };
 
 export default JoinSession;

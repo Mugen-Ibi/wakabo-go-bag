@@ -1,7 +1,7 @@
 // Firebase設定とヘルパー関数 - プロダクション版
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, enableNetwork, disableNetwork, writeBatch, collection, doc, getDocs } from 'firebase/firestore';
+import { getFirestore, Firestore, enableNetwork, disableNetwork } from 'firebase/firestore';
 import { getFunctions, Functions } from 'firebase/functions';
 
 // Firebaseの設定

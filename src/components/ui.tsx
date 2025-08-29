@@ -146,15 +146,15 @@ type NotificationProps = {
   onClose: () => void;
 };
 export const Notification: React.FC<NotificationProps> = ({ message, type, onClose }) => {
-    if (!message) return null;
-    
-    React.useEffect(() => {
-        const timer = setTimeout(onClose, 3000);
-        return () => clearTimeout(timer);
-    }, [message, onClose]);
+  React.useEffect(() => {
+    if (!message) return;
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [message, onClose]);
     
     const bgColor = type === 'error' ? 'bg-red-600' : 'bg-green-600';
     
+    if (!message) return null;
     return (
       <div className={`fixed bottom-5 right-5 text-white px-4 py-3 rounded-lg shadow-lg z-50 ${bgColor}`}>
         {message}

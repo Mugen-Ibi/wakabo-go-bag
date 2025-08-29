@@ -1,5 +1,5 @@
 // デバウンス関数のユーティリティ
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {
@@ -11,13 +11,13 @@ export function debounce<T extends (...args: any[]) => any>(
     }
     
     timeoutId = setTimeout(() => {
-      func.apply(null, args);
+      (func as (...args: Parameters<T>) => unknown)(...args);
     }, delay);
   };
 }
 
 // スロットル関数のユーティリティ
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {
@@ -27,7 +27,7 @@ export function throttle<T extends (...args: any[]) => any>(
     const currentTime = Date.now();
     
     if (currentTime - lastExecTime >= delay) {
-      func.apply(null, args);
+      (func as (...args: Parameters<T>) => unknown)(...args);
       lastExecTime = currentTime;
     }
   };

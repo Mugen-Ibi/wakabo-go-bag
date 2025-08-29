@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db, appId } from '../../lib/firebase';
 import { Card, Button, IconButton, Item, Modal } from '../../components/ui';
 import AddItemModal from '../../components/AddItemModal';
-import { PlusCircle, Trash2, Edit, XCircle } from 'lucide-react';
-import type { ItemList, ItemData, NotificationType } from '../../types';
-import { getItemName, normalizeItem } from '../../lib/itemUtils';
+import { PlusCircle, Trash2, Edit } from 'lucide-react';
+import type { ItemList, ItemData, NotificationType, Session } from '../../types';
+import { getItemName } from '../../lib/itemUtils';
 
 interface Props {
   itemLists: ItemList[];
@@ -17,7 +17,22 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
     const [editingList, setEditingList] = useState<ItemList | null>(null);
     const [newItemText, setNewItemText] = useState<string>("");
     const [listToDelete, setListToDelete] = useState<ItemList | null>(null);
+    const [sessionsUsingList, setSessionsUsingList] = useState<Session[]>([]);
+    const [checkingUsage, setCheckingUsage] = useState<boolean>(false);
+    const [replacementListId, setReplacementListId] = useState<string>("");
+    const [isMigrating, setIsMigrating] = useState<boolean>(false);
     const [showAddItemModal, setShowAddItemModal] = useState<boolean>(false);
+    const [editingListName, setEditingListName] = useState<string>("");
+    const [isSavingName, setIsSavingName] = useState<boolean>(false);
+    
+    // 編集開始時に現在の名称を入力欄へ反映
+    useEffect(() => {
+        if (editingList) {
+            setEditingListName(editingList.name || "");
+        } else {
+            setEditingListName("");
+        }
+    }, [editingList]);
     
     const handleCreateList = async () => {
         const trimmedName = newListName.trim();
@@ -29,10 +44,71 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
 
     const confirmDeleteList = async () => {
         if (!listToDelete) return;
+        // 使用中ブロック（安全のため）
+        if (sessionsUsingList.length > 0) {
+            setNotification({ type: 'error', message: `このリストは ${sessionsUsingList.length} 件のセッションで使用中のため削除できません。` });
+            return;
+        }
         await deleteDoc(doc(db, "artifacts", appId, "public", "data", "itemLists", listToDelete.id));
         setNotification({type: 'success', message: `リスト「${listToDelete.name}」を削除しました。`});
         if (editingList?.id === listToDelete.id) setEditingList(null);
         setListToDelete(null); 
+    };
+
+    // 削除確認モーダルを開いたときに、そのリストを参照しているセッションを取得
+    useEffect(() => {
+        const checkUsage = async () => {
+            if (!listToDelete) { setSessionsUsingList([]); return; }
+            try {
+                setCheckingUsage(true);
+                const sessionsRef = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
+                const q = query(sessionsRef, where("itemListId", "==", listToDelete.id));
+                const snap = await getDocs(q);
+                const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+                setSessionsUsingList(used);
+            } catch (e) {
+                console.error('Failed to check list usage', e);
+                setSessionsUsingList([]);
+            } finally {
+                setCheckingUsage(false);
+            }
+        };
+        checkUsage();
+    }, [listToDelete]);
+
+    const handleBulkReplace = async () => {
+        if (!listToDelete) return;
+        if (!replacementListId || replacementListId === listToDelete.id) {
+            setNotification({ type: 'error', message: '置換先のリストを選択してください。' });
+            return;
+        }
+        if (sessionsUsingList.length === 0) return;
+        try {
+            setIsMigrating(true);
+            // Firestore は 1 バッチ 500 書き込みまで。チャンクに分割して処理。
+            const chunkSize = 450;
+            for (let i = 0; i < sessionsUsingList.length; i += chunkSize) {
+                const chunk = sessionsUsingList.slice(i, i + chunkSize);
+                const batch = writeBatch(db);
+                chunk.forEach((s) => {
+                    const sRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", s.id);
+                    batch.update(sRef, { itemListId: replacementListId });
+                });
+                await batch.commit();
+            }
+            setNotification({ type: 'success', message: `${sessionsUsingList.length} 件のセッションを置換しました。` });
+            // 置換完了後に再チェック
+            const sessionsRef = collection(db, "artifacts", appId, "public", "data", "trainingSessions");
+            const q = query(sessionsRef, where("itemListId", "==", listToDelete.id));
+            const snap = await getDocs(q);
+            const used: Session[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+            setSessionsUsingList(used);
+        } catch (e) {
+            console.error('Bulk replace failed', e);
+            setNotification({ type: 'error', message: '一括置換に失敗しました。ネットワーク状態をご確認ください。' });
+        } finally {
+            setIsMigrating(false);
+        }
     };
 
     // 新しいアイテム（オブジェクト形式）を追加
@@ -103,6 +179,42 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
             </div>
             <Modal isOpen={!!editingList} onClose={() => setEditingList(null)} title={`リスト編集: ${editingList?.name}`}>
                  <div className="space-y-4">
+                    {/* 名称変更 */}
+                    <div className="flex flex-col sm:flex-row gap-2 items-stretch">
+                        <input 
+                            type="text" 
+                            value={editingListName}
+                            onChange={(e) => setEditingListName(e.target.value)}
+                            placeholder="リスト名を編集"
+                            className="flex-grow p-2 rounded-lg theme-bg-input theme-text-primary theme-border"
+                        />
+                        <Button 
+                            onClick={async () => {
+                                if (!editingList) return;
+                                const name = editingListName.trim();
+                                if (!name) { setNotification({ type: 'error', message: 'リスト名を入力してください。' }); return; }
+                                // 重複チェック
+                                const dup = itemLists.some(l => l.name === name && l.id !== editingList.id);
+                                if (dup) { setNotification({ type: 'error', message: '同じ名前のリストが既に存在します。別の名前にしてください。' }); return; }
+                                try {
+                                    setIsSavingName(true);
+                                    await updateDoc(doc(db, "artifacts", appId, "public", "data", "itemLists", editingList.id), { name });
+                                    setEditingList({ ...editingList, name });
+                                    setNotification({ type: 'success', message: 'リスト名を更新しました。' });
+                                } catch (e) {
+                                    console.error('Failed to rename list', e);
+                                    setNotification({ type: 'error', message: 'リスト名の更新に失敗しました。' });
+                                } finally {
+                                    setIsSavingName(false);
+                                }
+                            }}
+                            disabled={!editingListName.trim() || isSavingName}
+                            className="bg-blue-600 hover:bg-blue-700"
+                        >
+                            {isSavingName ? '保存中...' : '名称を保存'}
+                        </Button>
+                    </div>
+                    <p className="text-xs theme-text-secondary">ヒント: 画面を開いた直後は現在のリスト名を入力してください。</p>
                     <div className="flex gap-2 mb-4">
                         <Button 
                             onClick={() => setShowAddItemModal(true)} 
@@ -159,10 +271,52 @@ const ItemListManager: React.FC<Props> = ({ itemLists, setNotification }) => {
             <Modal isOpen={!!listToDelete} onClose={() => setListToDelete(null)} title="リストの削除の確認" maxWidth="max-w-lg">
                 <div className="space-y-4">
                     <p className="theme-text-primary">リスト <span className="font-bold text-red-600">{listToDelete?.name}</span> を本当に削除しますか？</p>
-                    <p className="text-sm theme-text-secondary">この操作は元に戻せません。このリストを使用しているセッションがある場合、正常に動作しなくなる可能性があります。</p>
+                    <p className="text-sm theme-text-secondary">この操作は元に戻せません。</p>
+                    {checkingUsage ? (
+                        <p className="text-sm theme-text-secondary">使用状況を確認中...</p>
+                    ) : sessionsUsingList.length > 0 ? (
+                        <div className="p-3 rounded theme-bg-secondary space-y-3">
+                            <p className="text-sm text-red-600 font-semibold">このリストは以下のセッションで使用中のため削除できません:</p>
+                            <ul className="list-disc list-inside text-sm theme-text-primary">
+                                {sessionsUsingList.map((s) => (
+                                    <li key={s.id}>{s.name || '(名称未設定)'} <span className="theme-text-secondary">(ID: {s.id})</span></li>
+                                ))}
+                            </ul>
+                            <div className="pt-2 border-t border-gray-300/30 dark:border-gray-600/30">
+                                <p className="text-sm theme-text-secondary mb-2">他のアイテムリストへ一括置換してから削除できます。</p>
+                                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                                    <select
+                                        value={replacementListId}
+                                        onChange={(e) => setReplacementListId(e.target.value)}
+                                        className="px-2 py-2 rounded theme-bg-input theme-text-primary theme-border"
+                                        aria-label="置換先のリストを選択"
+                                    >
+                                        <option value="">置換先のリストを選択</option>
+                                        {itemLists
+                                            .filter(l => l.id !== listToDelete?.id)
+                                            .map((l) => (
+                                                <option key={l.id} value={l.id}>{l.name}{l.isDefault ? '（基本）' : ''}</option>
+                                            ))}
+                                    </select>
+                                    <Button 
+                                        onClick={handleBulkReplace} 
+                                        disabled={!replacementListId || isMigrating}
+                                        className="bg-blue-600 hover:bg-blue-700 text-sm"
+                                    >
+                                        {isMigrating ? '置換中...' : 'セッションを一括置換'}
+                                    </Button>
+                                </div>
+                                {itemLists.filter(l => l.id !== listToDelete?.id).length === 0 && (
+                                    <p className="text-xs mt-1 text-yellow-600">置換先のリストがありません。新しいリストを作成してください。</p>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-sm theme-text-secondary">このリストを使用しているセッションは見つかりませんでした。</p>
+                    )}
                     <div className="flex justify-end gap-4 pt-4">
                         <Button onClick={() => setListToDelete(null)} className="theme-button-secondary">キャンセル</Button>
-                        <Button onClick={confirmDeleteList} className="bg-red-600 hover:bg-red-700">削除する</Button>
+                        <Button onClick={confirmDeleteList} disabled={sessionsUsingList.length > 0 || checkingUsage || isMigrating} className={`bg-red-600 hover:bg-red-700 ${sessionsUsingList.length > 0 || checkingUsage || isMigrating ? 'opacity-60 cursor-not-allowed' : ''}`}>削除する</Button>
                     </div>
                 </div>
             </Modal>

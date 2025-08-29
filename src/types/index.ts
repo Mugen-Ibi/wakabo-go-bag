@@ -25,7 +25,7 @@ export interface Session {
   itemListId: string;
   accessCode: string;
   isActive: boolean;
-  createdAt: any;
+  createdAt: { seconds: number; nanoseconds: number } | Date | null;
 }
 
 export interface SessionInfo {

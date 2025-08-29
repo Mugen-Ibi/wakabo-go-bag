@@ -8,18 +8,19 @@ import { getItemName } from '../../lib/itemUtils';
 import type { NotificationType, ItemData } from '../../types';
 
 type InfoType = {
-  type: 'lesson' | 'workshop';
-  team?: { selectedItems?: string[]; isSubmitted?: boolean; teamNumber?: number; id?: string };
-  session: { id: string; [key: string]: any };
-  itemList: { name: string; items: (string | ItemData)[] };
+    type: 'lesson' | 'workshop';
+    team?: { selectedItems?: string[]; isSubmitted?: boolean; teamNumber?: number; id?: string };
+    session: { id: string; name?: string };
+    itemList: { name: string; items: (string | ItemData)[] };
 };
 
 interface Props {
-  info: InfoType;
-  setNotification: (n: NotificationType) => void;
+    info: InfoType;
+    setNotification: (n: NotificationType) => void;
+    onSubmitted?: (selected: string[]) => void;
 }
 
-const ParticipantMode: React.FC<Props> = ({ info, setNotification }) => {
+const ParticipantMode: React.FC<Props> = ({ info, setNotification, onSubmitted }) => {
     const [selectedItems, setSelectedItems] = useState<string[]>(info.type === 'lesson' ? info.team?.selectedItems || [] : []);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [isSubmitted, setIsSubmitted] = useState<boolean>(info.type === 'lesson' ? info.team?.isSubmitted ?? false : false);
@@ -39,9 +40,11 @@ const ParticipantMode: React.FC<Props> = ({ info, setNotification }) => {
             await addDoc(collectionPath, { userId, selectedItems, isSubmitted: true, submittedAt: serverTimestamp() });
         }
         
-        setIsSubmitted(true);
-        setNotification({type: 'success', message: "回答を提出しました。お疲れ様でした！"});
-        setIsSubmitting(false);
+    setIsSubmitted(true);
+    setNotification({type: 'success', message: "回答を提出しました。お疲れ様でした！"});
+    setIsSubmitting(false);
+    // 結果ボードへ遷移（親に委譲）
+    onSubmitted?.(selectedItems);
     };
 
     const handleItemClick = async (item: string | ItemData) => {

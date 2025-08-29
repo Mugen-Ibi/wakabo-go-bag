@@ -7,17 +7,18 @@ import { Notification, IconButton } from '../components/ui';
 import AdminHub from '../modules/admin/AdminHub';
 import JoinSession from '../modules/participant/JoinSession';
 import ParticipantMode from '../modules/participant/ParticipantMode';
+import ResultsDashboard from '../modules/admin/ResultsDashboard';
 import { Sun, Moon, Monitor, Settings, Users } from 'lucide-react';
-import type { NotificationType } from '../types';
+import type { NotificationType, SessionInfo as SessionInfoType } from '../types';
 import './globals.css';
 
-
-type SessionInfoType = any; // 必要に応じて厳密化
+// SessionInfoType は types からインポート
 
 export default function App() {
-  const [mode, setMode] = useState<string>('home');
-  const [sessionInfo, setSessionInfo] = useState<SessionInfoType>(null);
+  const [mode, setMode] = useState<'home'|'join'|'admin'|'lesson'|'workshop'|'results'>('home');
+  const [sessionInfo, setSessionInfo] = useState<SessionInfoType | null>(null);
   const [notification, setNotification] = useState<NotificationType>(null);
+  const [myItems, setMyItems] = useState<string[] | null>(null);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
@@ -39,14 +40,44 @@ export default function App() {
   }, [mounted]); // mountedを依存配列に追加
 
   const handleJoinSession = (info: SessionInfoType) => { setSessionInfo(info); setMode(info.type); };
+  const handleSubmitted = (selected: string[]) => {
+    setMyItems(selected);
+    // 結果ボードに遷移（参加したセッションの結果）
+    setMode('results');
+  };
   const goHome = () => { setMode('home'); setSessionInfo(null); };
 
   const renderContent = () => {
     switch (mode) {
       case 'admin': return <AdminHub setNotification={setNotification} />;
       case 'join': return <JoinSession onJoin={handleJoinSession} />;
-      case 'lesson': return <ParticipantMode info={sessionInfo} setNotification={setNotification} />;
-      case 'workshop': return <ParticipantMode info={sessionInfo} setNotification={setNotification} />;
+      case 'lesson':
+        return sessionInfo ? (
+          <ParticipantMode info={{
+            type: sessionInfo.type,
+            team: undefined, // lesson の場合は JoinSession 側で付与される
+            session: { id: sessionInfo.sessionId, name: sessionInfo.sessionName },
+            itemList: { name: sessionInfo.itemList.name, items: sessionInfo.itemList.items },
+          }} setNotification={setNotification} onSubmitted={handleSubmitted} />
+        ) : null;
+      case 'workshop':
+        return sessionInfo ? (
+          <ParticipantMode info={{
+            type: sessionInfo.type,
+            team: undefined,
+            session: { id: sessionInfo.sessionId, name: sessionInfo.sessionName },
+            itemList: { name: sessionInfo.itemList.name, items: sessionInfo.itemList.items },
+          }} setNotification={setNotification} onSubmitted={handleSubmitted} />
+        ) : null;
+      case 'results': return (
+        sessionInfo ? (
+          <ResultsDashboard
+            session={{ id: sessionInfo.sessionId, name: sessionInfo.sessionName, type: sessionInfo.type }}
+            myItems={myItems || []}
+            onBack={() => setMode(sessionInfo.type)}
+          />
+        ) : null
+      );
       default:
         return (
           <div className="w-full max-w-5xl mx-auto text-center">
