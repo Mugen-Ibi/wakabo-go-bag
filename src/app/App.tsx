@@ -7,6 +7,7 @@ import { Notification, IconButton } from '../components/ui';
 import AdminHub from '../modules/admin/AdminHub';
 import JoinSession from '../modules/participant/JoinSession';
 import ParticipantMode from '../modules/participant/ParticipantMode';
+import ResultsDashboard from '../modules/admin/ResultsDashboard';
 import { Sun, Moon, Monitor, Settings, Users } from 'lucide-react';
 import type { NotificationType } from '../types';
 import './globals.css';
@@ -18,6 +19,7 @@ export default function App() {
   const [mode, setMode] = useState<string>('home');
   const [sessionInfo, setSessionInfo] = useState<SessionInfoType>(null);
   const [notification, setNotification] = useState<NotificationType>(null);
+  const [myItems, setMyItems] = useState<string[] | null>(null);
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
@@ -39,14 +41,28 @@ export default function App() {
   }, [mounted]); // mountedを依存配列に追加
 
   const handleJoinSession = (info: SessionInfoType) => { setSessionInfo(info); setMode(info.type); };
+  const handleSubmitted = (selected: string[]) => {
+    setMyItems(selected);
+    // 結果ボードに遷移（参加したセッションの結果）
+    setMode('results');
+  };
   const goHome = () => { setMode('home'); setSessionInfo(null); };
 
   const renderContent = () => {
     switch (mode) {
       case 'admin': return <AdminHub setNotification={setNotification} />;
       case 'join': return <JoinSession onJoin={handleJoinSession} />;
-      case 'lesson': return <ParticipantMode info={sessionInfo} setNotification={setNotification} />;
-      case 'workshop': return <ParticipantMode info={sessionInfo} setNotification={setNotification} />;
+      case 'lesson': return <ParticipantMode info={sessionInfo} setNotification={setNotification} onSubmitted={handleSubmitted} />;
+      case 'workshop': return <ParticipantMode info={sessionInfo} setNotification={setNotification} onSubmitted={handleSubmitted} />;
+      case 'results': return (
+        sessionInfo ? (
+          <ResultsDashboard 
+            session={{ id: sessionInfo.session.id, name: sessionInfo.session.name, type: sessionInfo.type }} 
+            myItems={myItems || []}
+            onBack={() => setMode(sessionInfo.type)}
+          />
+        ) : null
+      );
       default:
         return (
           <div className="w-full max-w-5xl mx-auto text-center">

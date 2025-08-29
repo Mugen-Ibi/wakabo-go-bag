@@ -3,8 +3,10 @@ import styles from './ResultsDashboard.module.css';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, appId } from '../../lib/firebase';
 import { Card } from '../../components/ui';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { Session, TeamResult, SessionStats } from '../../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import type { TeamResult, SessionStats } from '../../types';
+
+type SessionLike = { id: string; name: string; type: 'lesson' | 'workshop' };
 
 type TeamOrParticipant = {
   id: string;
@@ -14,11 +16,12 @@ type TeamOrParticipant = {
 };
 
 interface Props {
-  session: Session;
-  onBack?: () => void;
+    session: SessionLike;
+    onBack?: () => void;
+    myItems?: string[]; // 自分が選んだアイテム名のリスト（色分け用・任意）
 }
 
-const ResultsDashboard: React.FC<Props> = ({ session, onBack }) => {
+const ResultsDashboard: React.FC<Props> = ({ session, onBack, myItems = [] }) => {
     const [results, setResults] = useState<TeamOrParticipant[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const mountedRef = useRef<boolean>(true);
@@ -96,11 +99,30 @@ const ResultsDashboard: React.FC<Props> = ({ session, onBack }) => {
               <h2 className="text-2xl font-bold text-center theme-text-primary">結果発表ボード: <span className="text-blue-500">{session.name}</span></h2>
               {onBack && <button className="text-blue-600 hover:underline font-medium" onClick={onBack}>戻る</button>}
             </div>
-            <Card>
+                        <Card>
                 <h3 className="text-xl font-bold mb-2 theme-text-primary">全体集計</h3>
-                <p className="theme-text-secondary">{stats.submittedCount} / {stats.totalCount || '多数'} {session.type === 'lesson' ? 'チーム' : '人'} が提出済み</p>
+                                <p className="theme-text-secondary">{stats.submittedCount} / {stats.totalCount || '多数'} {session.type === 'lesson' ? 'チーム' : '人'} が提出済み</p>
+                                                {myItems.length > 0 && (
+                                                    <div className="mt-2 text-sm flex items-center gap-2">
+                                                        <span className={styles['my-item-legend-box']} />
+                                                        <span className="align-middle theme-text-secondary">緑のバーはあなたが選んだアイテム</span>
+                                                    </div>
+                                                )}
                 <div className={`mt-4 ${styles['results-chart-container']}`}>
-                    <ResponsiveContainer><BarChart data={stats.sortedItems} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}><CartesianGrid strokeDasharray="0.5 0.5" strokeOpacity={0.3} /><XAxis type="number" allowDecimals={false} stroke="rgb(107 114 128)" /><YAxis dataKey="name" type="category" width={120} stroke="rgb(107 114 128)"/><Tooltip contentStyle={{backgroundColor: 'rgba(31, 41, 55, 0.8)', color: '#fff', border: 'none'}} cursor={{fill: 'rgba(156, 163, 175, 0.2)'}}/><Legend /><Bar dataKey="count" name={session.type === 'lesson' ? '選択チーム数' : '選択人数'} fill="#8884d8" /></BarChart></ResponsiveContainer>
+                                        <ResponsiveContainer>
+                                            <BarChart data={stats.sortedItems} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="0.5 0.5" strokeOpacity={0.3} />
+                                                <XAxis type="number" allowDecimals={false} stroke="rgb(107 114 128)" />
+                                                <YAxis dataKey="name" type="category" width={120} stroke="rgb(107 114 128)"/>
+                                                <Tooltip contentStyle={{backgroundColor: 'rgba(31, 41, 55, 0.8)', color: '#fff', border: 'none'}} cursor={{fill: 'rgba(156, 163, 175, 0.2)'}}/>
+                                                <Legend />
+                                                <Bar dataKey="count" name={session.type === 'lesson' ? '選択チーム数' : '選択人数'}>
+                                                    {stats.sortedItems.map((entry: any) => (
+                                                        <Cell key={`cell-${entry.name}`} fill={myItems.includes(entry.name) ? '#34d399' : '#8884d8'} />
+                                                    ))}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
                 </div>
             </Card>
             {session.type === 'lesson' && (
