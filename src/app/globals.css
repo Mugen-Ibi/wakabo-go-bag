@@ -1,127 +1,150 @@
 @import "tailwindcss";
 
-@theme {
-  --color-*: initial;
-  --color-primary: #3b82f6;
-  --color-secondary: #64748b;
+@layer base {
+  :root {
+    /* Background colors */
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    
+    /* Text colors */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    
+    /* Border colors */
+    --border: #cbd5e1;
+    --border-input: #94a3b8;
+    
+    /* Accent colors */
+    --color-danger: #dc2626;
+    --color-danger-hover: #991b1b;
+    --color-danger-bg: rgba(254, 226, 226, 0.5);
+    --color-danger-bg-dark: rgba(220, 38, 38, 0.1);
+    --color-focus: #3b82f6;
+    --color-focus-ring: rgba(59, 130, 246, 0.5);
+    --color-success: #34d399;
+    
+    /* Transitions */
+    --transition-base: all 0.2s ease;
+    --transition-theme: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  .dark {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #334155;
+    --bg-input: #475569;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --border: #475569;
+    --border-input: #64748b;
+  }
+
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: var(--transition-theme);
+    min-height: 100vh;
+  }
+
+  html.dark body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
 }
 
-@variant dark (&:where(.dark, .dark *));
+@layer utilities {
+  /* Theme background utilities */
+  .theme-bg-primary {
+    background-color: var(--bg-primary);
+  }
 
-:root {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-input: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --border: #cbd5e1;
-  --border-input: #94a3b8;
-}
+  .theme-bg-secondary {
+    background-color: var(--bg-secondary);
+  }
+  
+  .theme-bg-hover {
+    background-color: var(--bg-input);
+  }
 
-.dark {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #334155;
-  --bg-input: #475569;
-  --text-primary: #f1f5f9;
-  --text-secondary: #cbd5e1;
-  --border: #475569;
-  --border-input: #64748b;
-}
+  .theme-bg-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+  }
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.3s ease, color 0.3s ease;
-  min-height: 100vh;
-}
+  .theme-bg-input {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-input);
+  }
 
-/* Tailwind dark mode compatibility */
-html.dark body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-}
+  /* Theme text utilities */
+  .theme-text-primary {
+    color: var(--text-primary);
+  }
 
-.theme-bg-primary {
-  background-color: var(--bg-primary);
-}
+  .theme-text-secondary {
+    color: var(--text-secondary);
+  }
 
-.theme-bg-secondary {
-  background-color: var(--bg-secondary);
-}
+  /* Theme border utilities */
+  .theme-border {
+    border-color: var(--border);
+  }
 
-.theme-bg-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border);
-}
+  /* Theme button utilities */
+  .theme-button-secondary {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    transition: var(--transition-base);
+    
+    &:hover {
+      opacity: 0.8;
+    }
+  }
 
-.theme-bg-input {
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-input);
-}
+  /* Theme delete icon */
+  .theme-delete-icon {
+    color: var(--color-danger);
+    transition: var(--transition-base);
+    
+    &:hover {
+      color: var(--color-danger-hover);
+      background-color: var(--color-danger-bg);
+    }
+    
+    .dark &:hover {
+      background-color: var(--color-danger-bg-dark);
+    }
+  }
 
-.theme-text-primary {
-  color: var(--text-primary);
-}
+  /* Theme input */
+  .theme-input {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-input);
+    color: var(--text-primary);
+    transition: var(--transition-base);
+    
+    &:focus {
+      outline: none;
+      border-color: var(--color-focus);
+      box-shadow: 0 0 0 2px var(--color-focus-ring);
+    }
+  }
 
-.theme-text-secondary {
-  color: var(--text-secondary);
-}
+  /* Results dashboard utilities */
+  .results-chart-container {
+    width: 100%;
+    height: 400px;
+  }
 
-.theme-border {
-  border-color: var(--border);
-}
-
-.theme-button-secondary {
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border);
-}
-
-.theme-button-secondary:hover {
-  opacity: 0.8;
-}
-
-.theme-delete-icon {
-  color: #dc2626;
-  transition: all 0.2s ease;
-}
-
-.theme-delete-icon:hover {
-  color: #991b1b;
-  background-color: rgba(254, 226, 226, 0.5);
-}
-
-.dark .theme-delete-icon:hover {
-  background-color: rgba(220, 38, 38, 0.1);
-}
-
-/* 共通のインプットスタイル */
-.theme-input {
-  background-color: var(--bg-input);
-  border: 1px solid var(--border-input);
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-}
-
-.theme-input:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
-}
-
-/* ResultsDashboard用のスタイル */
-.results-chart-container {
-  width: 100%;
-  height: 400px;
-}
-
-.my-item-legend-box {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 0.125rem;
-  background-color: #34d399;
+  .my-item-legend-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 0.125rem;
+    background-color: var(--color-success);
+  }
 }
