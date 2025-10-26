@@ -186,3 +186,40 @@ export const firestoreHelpers = {
     await batch.commit();
   },
 };
+
+// Firebase関数の再エクスポート（インポートの重複を削減）
+export {
+  // Auth
+  onAuthStateChanged,
+  signInAnonymously,
+  type User,
+} from 'firebase/auth';
+
+export {
+  // Firestore基本
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  setDoc,
+  writeBatch,
+  
+  // Query
+  query,
+  where,
+  orderBy,
+  limit,
+  
+  // Realtime
+  onSnapshot,
+  
+  // Timestamp
+  serverTimestamp,
+  Timestamp,
+  
+  // その他
+  collectionGroup,
+} from 'firebase/firestore';

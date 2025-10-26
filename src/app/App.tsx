@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, onAuthStateChanged, signInAnonymously } from '../lib/firebase';
 import { Notification, IconButton } from '../components/ui';
 import AdminHub from '../modules/admin/AdminHub';
 import JoinSession from '../modules/participant/JoinSession';

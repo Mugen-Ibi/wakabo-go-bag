@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, appId } from '../../lib/firebase';
+import { db, appId, collection, query, onSnapshot, getDocs, addDoc, serverTimestamp } from '../../lib/firebase';
 import { INITIAL_DEFAULT_ITEMS } from '../../lib/utils';
 import { Card, Modal } from '../../components/ui';
 import SessionManager from './SessionManager';

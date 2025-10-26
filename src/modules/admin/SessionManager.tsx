@@ -1,6 +1,5 @@
 import React, { useReducer, useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from 'firebase/firestore';
-import { appId, firebaseNetworkHelpers } from '../../lib/firebase';
+import { appId, firebaseNetworkHelpers, collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, getDocs } from '../../lib/firebase';
 import { debounce } from '../../lib/utils';
 import { Card, Button, IconButton } from '../../components/ui';
 import { Plus, Play, Users, User, Trash2, Copy, RotateCcw, Wifi, WifiOff } from 'lucide-react';

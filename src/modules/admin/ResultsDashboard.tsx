@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, query, onSnapshot } from 'firebase/firestore';
-import { db, appId } from '../../lib/firebase';
+import { db, appId, collection, query, onSnapshot } from '../../lib/firebase';
 import { Card } from '../../components/ui';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 

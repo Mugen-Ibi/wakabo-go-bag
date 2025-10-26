@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import { doc, updateDoc, addDoc, serverTimestamp, collection } from 'firebase/firestore';
-import { auth, db, appId } from '../../lib/firebase';
+import { auth, db, appId, onAuthStateChanged, signInAnonymously, doc, updateDoc, addDoc, serverTimestamp, collection } from '../../lib/firebase';
 import { Card, Button, Item } from '../../components/ui';
 import { MAX_SELECTION, getItemName } from '../../lib/utils';
 import type { NotificationType, ParticipantInfo, ItemData } from '../../types';

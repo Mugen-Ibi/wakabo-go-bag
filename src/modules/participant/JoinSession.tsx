@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { collection, query, where, getDocs, getDoc, collectionGroup, doc } from 'firebase/firestore';
-import { db, appId } from '../../lib/firebase';
+import { db, appId, collection, query, where, getDocs, getDoc, collectionGroup, doc } from '../../lib/firebase';
 import { Card, Button } from '../../components/ui';
 import { LogIn } from 'lucide-react';
 import type { Session, ItemList, SessionInfo, SessionType } from '../../types';
