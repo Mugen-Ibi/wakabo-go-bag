@@ -16,6 +16,13 @@ export interface ItemList {
   name: string;
   items: (string | ItemData)[];  // 後方互換性のため両方サポート
   isDefault?: boolean;
+  createdAt?: FirestoreTimestamp | Date | null;
+}
+
+// Firestore Timestamp型
+export interface FirestoreTimestamp {
+  seconds: number;
+  nanoseconds: number;
 }
 
 export interface Session {
@@ -23,9 +30,9 @@ export interface Session {
   name: string;
   type: SessionType;
   itemListId: string;
-  accessCode: string;
+  accessCode?: string;
   isActive: boolean;
-  createdAt: { seconds: number; nanoseconds: number } | Date | null;
+  createdAt: FirestoreTimestamp | Date | null;
 }
 
 export interface SessionInfo {
@@ -41,6 +48,15 @@ export interface TeamResult {
   teamNumber: number;
   isSubmitted: boolean;
   selectedItems?: string[];
+  submittedAt?: FirestoreTimestamp | Date | null;
+}
+
+export interface ParticipantResult {
+  id: string;
+  userId: string | null;
+  isSubmitted: boolean;
+  selectedItems?: string[];
+  submittedAt?: FirestoreTimestamp | Date | null;
 }
 
 export interface SessionStats {
@@ -53,4 +69,23 @@ export interface AccessCode {
   code: string;
   type: 'team' | 'common';
   number?: number;
+}
+
+// チーム情報
+export interface TeamData {
+  id: string;
+  teamNumber: number;
+  accessCode: string;
+  selectedItems: string[];
+  isSubmitted: boolean;
+  createdAt?: FirestoreTimestamp | Date | null;
+  submittedAt?: FirestoreTimestamp | Date | null;
+}
+
+// 参加者情報（workshop用）
+export interface ParticipantInfo {
+  type: 'lesson' | 'workshop';
+  team?: TeamData;
+  session: { id: string; name?: string };
+  itemList: { name: string; items: (string | ItemData)[] };
 }

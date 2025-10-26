@@ -105,8 +105,13 @@ export const Item: React.FC<ItemProps> = ({ item, isSelected, onClick, isEditabl
           {itemData.category}
         </span>
       )}
-      {isEditable && (
-        <button onClick={onDelete} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600">
+      {isEditable && onDelete && (
+        <button 
+          onClick={onDelete} 
+          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+          title={`${itemName}を削除`}
+          aria-label={`${itemName}を削除`}
+        >
           <XCircle size={18} />
         </button>
       )}

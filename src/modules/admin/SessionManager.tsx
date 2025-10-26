@@ -572,15 +572,15 @@ const SessionManager: React.FC<SessionManagerProps> = ({ itemLists, onViewResult
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {session.type === 'workshop' && (
-                                                <IconButton onClick={() => copyAccessCode(session.accessCode)} title="コードをコピー" className="theme-copy-icon">
+                                            {session.type === 'workshop' && session.accessCode && (
+                                                <IconButton onClick={() => copyAccessCode(session.accessCode!)} title="コードをコピー" className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20">
                                                     <Copy size={16} />
                                                 </IconButton>
                                             )}
-                                            <IconButton onClick={() => onViewResults(session)} title="結果を見る" className="theme-view-icon">
+                                            <IconButton onClick={() => onViewResults(session)} title="結果を見る" className="text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20">
                                                 <Play size={16} />
                                             </IconButton>
-                                            <IconButton onClick={() => resetSession(session)} title="リセット" className="theme-reset-icon">
+                                            <IconButton onClick={() => resetSession(session)} title="リセット" className="text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20">
                                                 <RotateCcw size={16} />
                                             </IconButton>
                                             <IconButton onClick={() => deleteSession(session.id)} title="削除" className="theme-delete-icon hover:bg-red-50 dark:hover:bg-red-900/20">

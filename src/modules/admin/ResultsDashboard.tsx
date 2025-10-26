@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import styles from './ResultsDashboard.module.css';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db, appId } from '../../lib/firebase';
 import { Card } from '../../components/ui';
@@ -140,11 +139,11 @@ const ResultsDashboard: React.FC<Props> = ({ session, onBack, myItems = [] }) =>
                                 </div>
                                                 {myItems.length > 0 && (
                                                     <div className="mt-2 text-sm flex items-center gap-2">
-                                                        <span className={styles['my-item-legend-box']} />
+                                                        <span className="my-item-legend-box" />
                                                         <span className="align-middle theme-text-secondary">緑のバーはあなたが選んだアイテム</span>
                                                     </div>
                                                 )}
-                <div className={`mt-4 ${styles['results-chart-container']}`}>
+                <div className="mt-4 results-chart-container">
                                         <ResponsiveContainer>
                                             <BarChart data={filteredItems} layout="vertical" margin={{ top: 5, right: 30, left: 120, bottom: 5 }}>
                                                 <CartesianGrid strokeDasharray="0.5 0.5" strokeOpacity={0.3} />

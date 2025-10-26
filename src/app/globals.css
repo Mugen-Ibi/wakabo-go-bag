@@ -89,3 +89,31 @@ html.dark body {
 .dark .theme-delete-icon:hover {
   background-color: rgba(220, 38, 38, 0.1);
 }
+
+/* 共通のインプットスタイル */
+.theme-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+.theme-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* ResultsDashboard用のスタイル */
+.results-chart-container {
+  width: 100%;
+  height: 400px;
+}
+
+.my-item-legend-box {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 0.125rem;
+  background-color: #34d399;
+}

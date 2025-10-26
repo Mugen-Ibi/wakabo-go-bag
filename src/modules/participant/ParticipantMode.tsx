@@ -5,25 +5,18 @@ import { auth, db, appId } from '../../lib/firebase';
 import { Card, Button, Item } from '../../components/ui';
 import { MAX_SELECTION } from '../../lib/helpers';
 import { getItemName } from '../../lib/itemUtils';
-import type { NotificationType, ItemData } from '../../types';
-
-type InfoType = {
-    type: 'lesson' | 'workshop';
-    team?: { selectedItems?: string[]; isSubmitted?: boolean; teamNumber?: number; id?: string };
-    session: { id: string; name?: string };
-    itemList: { name: string; items: (string | ItemData)[] };
-};
+import type { NotificationType, ParticipantInfo, ItemData } from '../../types';
 
 interface Props {
-    info: InfoType;
+    info: ParticipantInfo;
     setNotification: (n: NotificationType) => void;
     onSubmitted?: (selected: string[]) => void;
 }
 
 const ParticipantMode: React.FC<Props> = ({ info, setNotification, onSubmitted }) => {
-    const [selectedItems, setSelectedItems] = useState<string[]>(info.type === 'lesson' ? info.team?.selectedItems || [] : []);
+    const [selectedItems, setSelectedItems] = useState<string[]>(info.type === 'lesson' && info.team ? info.team.selectedItems || [] : []);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-    const [isSubmitted, setIsSubmitted] = useState<boolean>(info.type === 'lesson' ? info.team?.isSubmitted ?? false : false);
+    const [isSubmitted, setIsSubmitted] = useState<boolean>(info.type === 'lesson' && info.team ? info.team.isSubmitted ?? false : false);
     const [userId, setUserId] = useState<string | null>(null);
 
     useEffect(() => { onAuthStateChanged(auth, (user) => { if(user) setUserId(user.uid ?? null); }); }, []);

@@ -55,7 +55,7 @@ export default function App() {
         return sessionInfo ? (
           <ParticipantMode info={{
             type: sessionInfo.type,
-            team: undefined, // lesson の場合は JoinSession 側で付与される
+            team: undefined,
             session: { id: sessionInfo.sessionId, name: sessionInfo.sessionName },
             itemList: { name: sessionInfo.itemList.name, items: sessionInfo.itemList.items },
           }} setNotification={setNotification} onSubmitted={handleSubmitted} />
