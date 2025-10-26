@@ -233,10 +233,10 @@ useEffect(() => {
 #### ユニットテスト
 
 ```typescript
-// lib/__tests__/itemUtils.test.ts
-import { normalizeItem, getItemName } from '../itemUtils';
+// lib/__tests__/utils.test.ts
+import { normalizeItem, getItemName } from '../utils';
 
-describe('itemUtils', () => {
+describe('utils', () => {
   describe('normalizeItem', () => {
     it('文字列を ItemData に変換', () => {
       const result = normalizeItem('水');

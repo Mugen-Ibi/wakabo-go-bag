@@ -5,7 +5,7 @@ import clsx from 'clsx';
 import { XCircle } from 'lucide-react';
 import { ItemData } from '../types';
 import { getIconComponent } from '../lib/icons';
-import { normalizeItem, getItemName } from '../lib/itemUtils';
+import { normalizeItem, getItemName } from '../lib/utils';
 
 type CardProps = { children: ReactNode; className?: string };
 export const Card: React.FC<CardProps> = ({ children, className = '' }) => (

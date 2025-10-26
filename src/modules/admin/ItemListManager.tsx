@@ -5,7 +5,7 @@ import { Card, Button, IconButton, Item, Modal } from '../../components/ui';
 import AddItemModal from '../../components/AddItemModal';
 import { PlusCircle, Trash2, Edit } from 'lucide-react';
 import type { ItemList, ItemData, NotificationType, Session } from '../../types';
-import { getItemName } from '../../lib/itemUtils';
+import { getItemName } from '../../lib/utils';
 
 interface Props {
   itemLists: ItemList[];
