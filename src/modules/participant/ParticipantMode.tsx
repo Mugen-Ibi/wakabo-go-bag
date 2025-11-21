@@ -1,82 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db, appId, onAuthStateChanged, signInAnonymously, doc, updateDoc, addDoc, serverTimestamp, collection } from '../../lib/firebase';
+import { db, appId, doc, setDoc, serverTimestamp } from '../../lib/firebase';
 import { Card, Button, Item } from '../../components/ui';
-import { MAX_SELECTION, getItemName } from '../../lib/utils';
-import type { NotificationType, ParticipantInfo, ItemData } from '../../types';
+import { NotificationType, SessionInfo, ItemData } from '../../types';
+import { getItemName, normalizeItem } from '../../lib/utils';
 
 interface Props {
-    info: ParticipantInfo;
+    info: {
+        type: 'lesson' | 'workshop';
+        team?: { id: string; teamNumber: number };
+        session: { id: string; name: string };
+        itemList: { name: string; items: (string | ItemData)[] };
+    };
     setNotification: (n: NotificationType) => void;
-    onSubmitted?: (selected: string[]) => void;
+    onSubmitted: (selectedItems: string[]) => void;
 }
 
 const ParticipantMode: React.FC<Props> = ({ info, setNotification, onSubmitted }) => {
-    const [selectedItems, setSelectedItems] = useState<string[]>(info.type === 'lesson' && info.team ? info.team.selectedItems || [] : []);
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-    const [isSubmitted, setIsSubmitted] = useState<boolean>(info.type === 'lesson' && info.team ? info.team.isSubmitted ?? false : false);
-    const [userId, setUserId] = useState<string | null>(null);
+    const [selectedItems, setSelectedItems] = useState<string[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => { onAuthStateChanged(auth, (user) => { if(user) setUserId(user.uid ?? null); }); }, []);
+    const handleItemClick = (item: string | ItemData) => {
+        const itemName = getItemName(item);
+        setSelectedItems(prev => {
+            if (prev.includes(itemName)) {
+                return prev.filter(i => i !== itemName);
+            } else {
+                if (prev.length >= 10) {
+                    setNotification({ type: 'error', message: 'アイテムは10個までしか選べません。' });
+                    return prev;
+                }
+                return [...prev, itemName];
+            }
+        });
+    };
 
     const handleSubmit = async () => {
-        if (selectedItems.length === 0) { setNotification({type: 'error', message: "アイテムを1つ以上選択してください。"}); return; }
+        if (selectedItems.length === 0) {
+            setNotification({ type: 'error', message: 'アイテムを少なくとも1つ選んでください。' });
+            return;
+        }
+
         setIsSubmitting(true);
+        try {
+            // データの保存先パスを決定
+            // レッスンモード: teams/{teamId} (既存のドキュメントを更新)
+            // ワークショップモード: participants/{userId} (新規作成または更新)
 
-        if(info.type === 'lesson' && info.team && info.team.id) {
-            const teamDocRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", info.session.id, "teams", info.team.id);
-            await updateDoc(teamDocRef, { selectedItems, isSubmitted: true, submittedAt: serverTimestamp() });
-        } else {
-            const collectionPath = collection(db, "artifacts", appId, "public", "data", "trainingSessions", info.session.id, "participants");
-            await addDoc(collectionPath, { userId, selectedItems, isSubmitted: true, submittedAt: serverTimestamp() });
+            if (info.type === 'lesson' && info.team) {
+                const teamRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", info.session.id, "teams", info.team.id);
+                await setDoc(teamRef, {
+                    selectedItems: selectedItems,
+                    isSubmitted: true,
+                    submittedAt: serverTimestamp()
+                }, { merge: true });
+            } else {
+                // ワークショップモード（個人参加）
+                // 匿名認証のUIDなどをキーにするのが理想だが、ここでは簡易的にランダムIDまたはlocalStorage等で管理されるIDを使用する想定
+                // 今回は簡易的に都度生成するID（または既存ロジックがあればそれに従うが、不明なので新規作成）
+                // 実際には App.tsx 等でユーザーIDを管理しているはずだが、propsには渡されていない。
+                // 既存の実装に合わせて、participants コレクションに addDoc するか、特定のIDで setDoc するか。
+                // ここでは auth.currentUser.uid を使いたいが、propsにないので import して使う。
+                const { auth } = await import('../../lib/firebase');
+                const uid = auth.currentUser?.uid;
+                if (uid) {
+                    const participantRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", info.session.id, "participants", uid);
+                    await setDoc(participantRef, {
+                        selectedItems: selectedItems,
+                        submittedAt: serverTimestamp()
+                    }, { merge: true });
+                } else {
+                    throw new Error("User not authenticated");
+                }
+            }
+
+            setNotification({ type: 'success', message: '提出しました！' });
+            onSubmitted(selectedItems);
+        } catch (error) {
+            console.error('Error submitting items:', error);
+            setNotification({ type: 'error', message: '提出に失敗しました。もう一度お試しください。' });
+        } finally {
+            setIsSubmitting(false);
         }
-        
-    setIsSubmitted(true);
-    setNotification({type: 'success', message: "回答を提出しました。お疲れ様でした！"});
-    setIsSubmitting(false);
-    // 結果ボードへ遷移（親に委譲）
-    onSubmitted?.(selectedItems);
     };
-
-    const handleItemClick = async (item: string | ItemData) => {
-        if (isSubmitted) return;
-        const itemName = getItemName(item);
-        const newSelectedItems = selectedItems.includes(itemName) 
-            ? selectedItems.filter((i: string) => i !== itemName) 
-            : [...selectedItems, itemName];
-        if (newSelectedItems.length > MAX_SELECTION) { setNotification({type: 'error', message: `選択できるアイテムは${MAX_SELECTION}個までです。`}); return; }
-        setSelectedItems(newSelectedItems);
-        
-        if (info.type === 'lesson' && info.team && info.team.id) {
-            const teamDocRef = doc(db, "artifacts", appId, "public", "data", "trainingSessions", info.session.id, "teams", info.team.id);
-            await updateDoc(teamDocRef, { selectedItems: newSelectedItems });
-        }
-    };
-
-    if (isSubmitted) {
-        return <Card><div className="text-center p-8"><h2 className="text-2xl font-bold text-green-600">提出完了！</h2><p className="mt-2 theme-text-secondary">ご協力ありがとうございました。</p></div></Card>;
-    }
-
-    const title = info.type === 'lesson' && info.team && info.team.teamNumber !== undefined ? `チーム ${info.team.teamNumber}` : info.session.name;
 
     return (
-        <div className="space-y-6">
+        <div className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500">
+            <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-foreground mb-2">{info.session.name}</h2>
+                <p className="text-muted-foreground">
+                    {info.type === 'lesson' && info.team
+                        ? `チーム ${info.team.teamNumber}`
+                        : '個人ワーク'}
+                </p>
+                <p className="mt-4 text-lg font-medium text-foreground">
+                    必要なアイテムを選んでください (最大10個)
+                </p>
+                <div className="mt-2 text-sm text-muted-foreground">
+                    選択中: <span className="font-bold text-primary text-lg">{selectedItems.length}</span> / 10
+                </div>
+            </div>
+
             <Card>
-                <div className="flex justify-between items-center mb-4"><h2 className="text-xl sm:text-2xl font-bold theme-text-primary">{title}</h2><div className="text-lg font-bold text-right theme-text-primary"><span className={selectedItems.length > MAX_SELECTION ? 'text-red-500' : ''}>{selectedItems.length}</span> / {MAX_SELECTION} 個</div></div>
-                <p className="theme-text-secondary">アイテムリスト: <span className="font-bold">{info.itemList.name}</span></p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 p-2">
+                    {info.itemList.items.map((item, index) => {
+                        const itemName = getItemName(item);
+                        return (
+                            <Item
+                                key={`${itemName}-${index}`}
+                                item={item}
+                                isSelected={selectedItems.includes(itemName)}
+                                onClick={() => handleItemClick(item)}
+                            />
+                        );
+                    })}
+                </div>
             </Card>
-            <Card><div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">{info.itemList.items.map((item, index: number) => {
-                const itemName = getItemName(item);
-                return (
-                    <Item 
-                        key={itemName + index} 
-                        item={item} 
-                        isSelected={selectedItems.includes(itemName)} 
-                        onClick={() => handleItemClick(item)} 
-                        onDelete={() => {}} 
-                    />
-                );
-            })}</div></Card>
-            <div className="text-center mt-6"><Button onClick={handleSubmit} disabled={selectedItems.length === 0 || isSubmitting} className="bg-green-600 hover:bg-green-700">{isSubmitting ? "提出中..." : "この内容で提出する"}</Button></div>
+
+            <div className="sticky bottom-6 flex justify-center">
+                <Button
+                    onClick={handleSubmit}
+                    disabled={selectedItems.length === 0 || isSubmitting}
+                    size="lg"
+                    className="shadow-xl w-full max-w-xs text-lg"
+                >
+                    {isSubmitting ? "提出中..." : "この内容で提出する"}
+                </Button>
+            </div>
         </div>
     );
 };

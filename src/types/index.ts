@@ -5,6 +5,7 @@ export type SessionType = 'lesson' | 'workshop';
 
 // アイテムデータの新しい構造
 export interface ItemData {
+  id?: string;             // 一意のID（管理用）
   name: string;
   icon?: string;           // Lucide React アイコン名
   category?: string;       // カテゴリ（食料、医療用品など）
@@ -17,6 +18,7 @@ export interface ItemList {
   items: (string | ItemData)[];  // 後方互換性のため両方サポート
   isDefault?: boolean;
   createdAt?: FirestoreTimestamp | Date | null;
+  updatedAt?: FirestoreTimestamp | Date | null;
 }
 
 // Firestore Timestamp型

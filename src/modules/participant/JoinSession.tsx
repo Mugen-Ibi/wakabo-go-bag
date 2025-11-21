@@ -81,7 +81,26 @@ const JoinSession: React.FC<Props> = ({ onJoin }) => {
         }
     };
 
-    return ( <Card><h2 className="text-2xl font-bold mb-4 text-center theme-text-primary">セッションに参加</h2><div className="flex flex-col items-center gap-4"><input type="text" value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="4桁の参加コード" maxLength={8} className="p-3 rounded-lg text-2xl text-center font-mono tracking-widest w-48 theme-bg-input theme-text-primary theme-border"/>{error && <p className="text-red-500 text-sm">{error}</p>}<Button onClick={handleJoin} disabled={isLoading} icon={LogIn}>{isLoading ? "参加中..." : "参加する"}</Button></div></Card> );
+    return (
+        <Card>
+            <h2 className="text-2xl font-bold mb-4 text-center text-foreground">セッションに参加</h2>
+            <div className="flex flex-col items-center gap-4">
+                <input
+                    type="text"
+                    value={accessCode}
+                    onChange={e => setAccessCode(e.target.value)}
+                    placeholder="4桁の参加コード"
+                    maxLength={8}
+                    className="p-3 rounded-lg text-2xl text-center font-mono tracking-widest w-48 bg-input text-foreground border-border"
+                />
+                {error && <p className="text-red-500 text-sm">{error}</p>}
+                <Button onClick={handleJoin} disabled={isLoading}>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {isLoading ? "参加中..." : "参加する"}
+                </Button>
+            </div>
+        </Card>
+    );
 };
 
 export default JoinSession;

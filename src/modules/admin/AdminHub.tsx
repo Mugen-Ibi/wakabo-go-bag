@@ -10,11 +10,11 @@ import type { ItemList, NotificationType, Session } from '../../types';
 import { toMillis, formatJaDateFrom } from '../../lib/time';
 
 interface AdminHubProps {
-  setNotification: (n: NotificationType) => void;
+    setNotification: (n: NotificationType) => void;
 }
 
 const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
-    const [view, setView] = useState<'sessions' | 'lists' | 'results'>('sessions'); // デフォルトをsessionsに戻す
+    const [view, setView] = useState<'sessions' | 'lists' | 'results'>('sessions');
     const [itemLists, setItemLists] = useState<ItemList[]>([]);
     const [sessions, setSessions] = useState<Session[]>([]);
     const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -24,7 +24,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
         const loadItemLists = async () => {
             try {
                 const itemListsCollection = collection(db, "artifacts", appId, "public", "data", "itemLists");
-                
+
                 // 最初に既存のデータを確認
                 const existingSnapshot = await getDocs(itemListsCollection);
                 const existingLists = existingSnapshot.docs.map(d => ({
@@ -33,7 +33,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                     items: d.data().items || [],
                     isDefault: d.data().isDefault || false
                 }));
-                
+
                 // デフォルトリストが存在しない場合は作成
                 if (!existingLists.some(list => list.isDefault)) {
                     console.log('デフォルトアイテムリストを作成中...');
@@ -55,7 +55,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                         items: d.data().items || [],
                         isDefault: d.data().isDefault || false
                     }));
-                    
+
                     setItemLists(lists);
                     setIsLoading(false);
                 });
@@ -66,9 +66,9 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                 setIsLoading(false);
             }
         };
-        
+
         loadItemLists();
-    }, [setNotification]); // viewを依存配列から削除
+    }, [setNotification]);
 
     // セッション一覧を購読（結果分析ページで選択できるように）
     useEffect(() => {
@@ -93,7 +93,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
             return (
                 <div className="text-center p-10">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="theme-text-primary">アイテムリストを読み込み中...</p>
+                    <p className="text-foreground">アイテムリストを読み込み中...</p>
                 </div>
             );
         }
@@ -107,8 +107,8 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                                 <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
                                     <List className="w-8 h-8 text-gray-400" />
                                 </div>
-                                <h3 className="text-xl font-semibold theme-text-primary mb-2">アイテムリストが必要です</h3>
-                                <p className="theme-text-secondary mb-6">セッションを作成する前に、まずアイテムリストを作成してください。</p>
+                                <h3 className="text-xl font-semibold text-foreground mb-2">アイテムリストが必要です</h3>
+                                <p className="text-muted-foreground mb-6">セッションを作成する前に、まずアイテムリストを作成してください。</p>
                                 <button
                                     onClick={() => setView('lists')}
                                     className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
@@ -127,7 +127,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                     <div className="space-y-4">
                         <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2">
-                                <label htmlFor="results-session-select" className="text-sm theme-text-secondary">セッション選択</label>
+                                <label htmlFor="results-session-select" className="text-sm text-muted-foreground">セッション選択</label>
                                 <select
                                     id="results-session-select"
                                     aria-label="結果分析で表示するセッション"
@@ -136,7 +136,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                                         const s = sessions.find((x) => x.id === e.target.value) || null;
                                         setSelectedSession(s);
                                     }}
-                                    className="px-2 py-1 rounded theme-bg-input theme-text-primary theme-border text-sm"
+                                    className="px-2 py-1 rounded bg-input text-foreground border border-border text-sm"
                                 >
                                     <option value="">未選択</option>
                                     {sessions.map((s) => (
@@ -148,7 +148,7 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                             </div>
                             {selectedSession && (
                                 <button
-                                    className="text-sm theme-text-secondary hover:underline"
+                                    className="text-sm text-muted-foreground hover:underline"
                                     onClick={() => setSelectedSession(null)}
                                 >
                                     選択をクリア
@@ -156,9 +156,13 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
                             )}
                         </div>
                         {selectedSession ? (
-                            <ResultsDashboard session={selectedSession} />
+                            <ResultsDashboard
+                                session={selectedSession}
+                                itemList={itemLists.find(l => l.id === selectedSession.itemListId) || { id: 'dummy', name: 'Unknown', items: [], createdAt: null, updatedAt: null }}
+                                onBack={() => setSelectedSession(null)}
+                            />
                         ) : (
-                            <div className="text-center p-10 theme-text-primary">セッションを選択してください</div>
+                            <div className="text-center p-10 text-foreground">セッションを選択してください</div>
                         )}
                     </div>
                 );
@@ -169,63 +173,34 @@ const AdminHub: React.FC<AdminHubProps> = ({ setNotification }) => {
 
     return (
         <div className="w-full max-w-5xl mx-auto space-y-6">
-            {/* ヘッダー */}
-            <div className="text-center">
-                <h1 className="text-3xl font-bold theme-text-primary mb-2">管理者モード</h1>
-                <p className="theme-text-secondary">防災持ち出し袋作成支援ツールの管理画面です</p>
+            {/* タブナビゲーション */}
+            <div className="flex items-center gap-2 p-1.5 bg-secondary/30 backdrop-blur-sm rounded-2xl border border-border/50 shadow-sm">
+                <button
+                    onClick={() => setView('sessions')}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all duration-300 flex-1 justify-center ${view === 'sessions'
+                            ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                        }`}
+                >
+                    <Clapperboard size={20} className={view === 'sessions' ? 'animate-in zoom-in duration-300' : ''} />
+                    <span>セッション管理</span>
+                </button>
+                <button
+                    onClick={() => setView('lists')}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all duration-300 flex-1 justify-center ${view === 'lists'
+                            ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-lg shadow-primary/20'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                        }`}
+                >
+                    <List size={20} className={view === 'lists' ? 'animate-in zoom-in duration-300' : ''} />
+                    <span>アイテム管理</span>
+                </button>
             </div>
 
-            {/* タブナビゲーション */}
-            <Card>
-                <div className="grid grid-cols-3 gap-1 p-2 theme-bg-input rounded-lg">
-                    <button
-                        onClick={() => setView('sessions')}
-                        disabled={isLoading}
-                        className={`flex items-center justify-center gap-2 p-3 rounded-md text-sm font-semibold transition-all disabled:opacity-50 ${
-                            view === 'sessions' 
-                                ? 'bg-blue-600 text-white shadow-md' 
-                                : 'theme-text-secondary hover:theme-bg-secondary hover:theme-text-primary'
-                        }`}
-                    >
-                        <Clapperboard size={18} />
-                        セッション管理
-                        {itemLists.length === 0 && !isLoading && (
-                            <span className="ml-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setView('lists')}
-                        disabled={isLoading}
-                        className={`flex items-center justify-center gap-2 p-3 rounded-md text-sm font-semibold transition-all disabled:opacity-50 ${
-                            view === 'lists' 
-                                ? 'bg-blue-600 text-white shadow-md' 
-                                : 'theme-text-secondary hover:theme-bg-secondary hover:theme-text-primary'
-                        }`}
-                    >
-                        <List size={18} />
-                        リスト管理
-                        {itemLists.length === 0 && !isLoading && (
-                            <span className="ml-1 text-xs bg-green-500 text-white px-1.5 py-0.5 rounded-full">推奨</span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setView('results')}
-                        disabled={isLoading}
-                        className={`flex items-center justify-center gap-2 p-3 rounded-md text-sm font-semibold transition-all disabled:opacity-50 ${
-                            view === 'results' 
-                                ? 'bg-blue-600 text-white shadow-md' 
-                                : 'theme-text-secondary hover:theme-bg-secondary hover:theme-text-primary'
-                        }`}
-                    >
-                        結果分析
-                    </button>
-                </div>
-            </Card>
-
-            {/* メインコンテンツ */}
-            <Card>
+            {/* コンテンツエリア */}
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                 {renderContent()}
-            </Card>
+            </div>
         </div>
     );
 };
